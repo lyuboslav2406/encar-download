@@ -422,11 +422,17 @@ def process_encar(url: str):
 Крайна цена до България: {format_eur(final_price_eur)} €
 ━━━━━━━━━━━━━━━━━━━""".replace(",", " ")
 
+    image_urls = [
+        f"/image/{job_id}/{file.name}"
+        for file in image_files
+    ]
+
     return {
         "job_id": job_id,
         "price_summary": price_summary,
         "facebook_post": facebook_post,
         "zip_url": f"/download/{job_id}",
+        "image_urls": image_urls,
         "images_count": len(image_files)
     }
 
@@ -451,6 +457,20 @@ def download_zip(job_id: str):
         zip_path,
         media_type="application/zip",
         filename="encar_images.zip"
+    )
+
+
+@app.get("/image/{job_id}/{image_name}")
+def get_image(job_id: str, image_name: str):
+    image_path = GENERATED_DIR / job_id / image_name
+
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Снимката не е намерена.")
+
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+        filename=image_name
     )
 
 

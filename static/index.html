@@ -88,9 +88,12 @@
     <button onclick="copyPost()">Copy Facebook Post</button>
 
     <a id="downloadZip" href="#" download>Download Images ZIP</a>
+    <button onclick="copyImageLinks()">Copy Image Links for Shortcut</button>
   </div>
 
   <script>
+    let latestImageUrls = [];
+
     async function generate() {
       const url = document.getElementById("url").value.trim();
       const status = document.getElementById("status");
@@ -122,6 +125,7 @@
         document.getElementById("priceSummary").textContent = data.price_summary;
         document.getElementById("facebookPost").value = data.facebook_post;
         document.getElementById("downloadZip").href = data.zip_url;
+        latestImageUrls = data.image_urls.map(url => window.location.origin + url);
 
         status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
         result.classList.remove("hidden");
@@ -138,6 +142,22 @@
         alert("Facebook постът е копиран.");
       } catch (e) {
         alert("Не успях да копирам. Маркирай текста ръчно.");
+      }
+    }
+
+    async function copyImageLinks() {
+      if (!latestImageUrls.length) {
+        alert("Няма снимки още.");
+        return;
+      }
+
+      const text = latestImageUrls.join("\n");
+
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("Линковете към снимките са копирани.");
+      } catch (e) {
+        alert("Не успях да копирам линковете.");
       }
     }
   </script>
