@@ -89,10 +89,12 @@
 
     <a id="downloadZip" href="#" download>Download Images ZIP</a>
     <button onclick="copyImageLinks()">Copy Image Links for Shortcut</button>
+    <button onclick="copyPhotosUrl()">Copy Photos URL for iPhone</button>
   </div>
 
   <script>
     let latestImageUrls = [];
+    let latestPhotosUrl = "";
 
     async function generate() {
       const url = document.getElementById("url").value.trim();
@@ -125,6 +127,7 @@
         document.getElementById("priceSummary").textContent = data.price_summary;
         document.getElementById("facebookPost").value = data.facebook_post;
         document.getElementById("downloadZip").href = data.zip_url;
+        latestPhotosUrl = window.location.origin + data.photos_url;
         latestImageUrls = data.image_urls.map(url => window.location.origin + url);
 
         status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
@@ -158,6 +161,20 @@
         alert("Линковете към снимките са копирани.");
       } catch (e) {
         alert("Не успях да копирам линковете.");
+      }
+    }
+
+    async function copyPhotosUrl() {
+      if (!latestPhotosUrl) {
+        alert("Няма генерирани снимки още.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(latestPhotosUrl);
+        alert("Photos URL е копиран.");
+      } catch (e) {
+        alert("Не успях да копирам Photos URL.");
       }
     }
   </script>
