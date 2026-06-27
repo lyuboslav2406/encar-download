@@ -195,25 +195,32 @@
     .action-link {
       width: 100%;
       border-radius: 18px;
-      background: #1f1f1f;
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: linear-gradient(180deg, #232323 0%, #1f1f1f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       color: #ffffff;
       padding: 16px 18px;
       font-size: 1rem;
       outline: none;
-      transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+      transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.04);
+    }
+
+    input:hover,
+    textarea:hover {
+      border-color: rgba(255, 255, 255, 0.24);
+      background: #272727;
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: rgba(255, 255, 255, 0.55);
+      color: rgba(255, 255, 255, 0.65);
     }
 
     input:focus,
     textarea:focus {
-      border-color: rgba(214, 28, 28, 0.65);
-      background: #262626;
+      border-color: rgba(214, 28, 28, 0.75);
+      background: #2b2b2b;
+      box-shadow: 0 0 0 1px rgba(214, 28, 28, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.05);
       transform: translateY(-1px);
     }
 
@@ -227,17 +234,19 @@
       font-weight: 700;
       color: #ffffff;
       background: var(--accent);
-      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+      box-shadow: 0 14px 32px rgba(214, 28, 28, 0.14);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, background 0.2s ease;
     }
 
     button:hover,
     .button-link:hover {
       transform: translateY(-1px);
-      opacity: 0.95;
+      opacity: 0.98;
+      box-shadow: 0 16px 34px rgba(214, 28, 28, 0.18);
     }
 
     .secondary-btn {
-      background: transparent;
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid rgba(214, 28, 28, 0.65);
       color: #ffffff;
     }
@@ -247,6 +256,13 @@
       color: var(--text-secondary);
       min-height: 1.5em;
       line-height: 1.6;
+    }
+
+    .card-note,
+    .subtitle {
+      max-width: 680px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .result-card {
@@ -447,27 +463,43 @@
 
     @media (max-width: 620px) {
       .page-shell {
-        width: min(100%, calc(100% - 18px));
-        padding: 18px 0 28px;
+        width: min(100%, calc(100% - 16px));
+        padding: 18px 0 24px;
       }
 
       .card,
       .card-collapsible {
-        padding: 20px 16px;
+        padding: 18px 14px;
       }
 
       button,
       input,
       .button-link {
-        font-size: 0.95rem;
+        font-size: 1rem;
+      }
+
+      button,
+      .button-link {
+        width: 100%;
       }
 
       .button-group {
         grid-template-columns: 1fr;
       }
 
+      .card-note,
       .subtitle {
-        font-size: 0.95rem;
+        max-width: 100%;
+      }
+
+      input,
+      textarea {
+        font-size: 1rem;
+        padding: 18px 20px;
+      }
+
+      .subtitle {
+        font-size: 0.98rem;
       }
     }
   </style>
