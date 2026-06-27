@@ -128,7 +128,6 @@
         document.getElementById("facebookPost").value = data.facebook_post;
         document.getElementById("downloadZip").href = data.zip_url;
         latestPhotosUrl = window.location.origin + data.photos_url;
-        latestImageUrls = data.image_urls.map(url => window.location.origin + url);
 
         status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
         result.classList.remove("hidden");
