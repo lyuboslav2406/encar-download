@@ -1,5 +1,11 @@
 generated/
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
 .env
+*.zip
+*.jpg
+*.jpeg
+*.png
 .vscode/
