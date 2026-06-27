@@ -5,7 +5,6 @@ __pycache__/
 *.pyd
 .env
 *.zip
-*.jpg
 *.jpeg
 *.png
 .vscode/
