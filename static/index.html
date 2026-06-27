@@ -90,6 +90,7 @@
     <a id="downloadZip" href="#" download>Download Images ZIP</a>
     <button onclick="copyImageLinks()">Copy Image Links for Shortcut</button>
     <button onclick="copyPhotosUrl()">Copy Photos URL for iPhone</button>
+    <button onclick="savePhotosToIphone()">📷 Save Photos to iPhone</button>
   </div>
 
   <script>
@@ -175,6 +176,22 @@
       } catch (e) {
         alert("Не успях да копирам Photos URL.");
       }
+    }
+
+    function savePhotosToIphone() {
+      if (!latestPhotosUrl) {
+        alert("Няма генерирани снимки още.");
+        return;
+      }
+
+      const shortcutName = "SaveStreamLinePhotos";
+      const shortcutUrl =
+        "shortcuts://run-shortcut?name=" +
+        encodeURIComponent(shortcutName) +
+        "&input=text&text=" +
+        encodeURIComponent(latestPhotosUrl);
+
+      window.location.href = shortcutUrl;
     }
   </script>
 </body>
