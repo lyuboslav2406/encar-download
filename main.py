@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -422,18 +422,12 @@ def process_encar(url: str):
 Крайна цена до България: {format_eur(final_price_eur)} €
 ━━━━━━━━━━━━━━━━━━━""".replace(",", " ")
 
-    image_urls = [
-        f"/image/{job_id}/{file.name}"
-        for file in image_files
-    ]
-
     return {
         "job_id": job_id,
         "price_summary": price_summary,
         "facebook_post": facebook_post,
         "zip_url": f"/download/{job_id}",
         "photos_url": f"/photos/{job_id}",
-        "image_urls": image_urls,
         "images_count": len(image_files)
     }
 
@@ -473,6 +467,27 @@ def get_image(job_id: str, image_name: str):
         media_type="image/jpeg",
         filename=image_name
     )
+
+
+@app.get("/photos/{job_id}")
+def get_photos(job_id: str, request: Request):
+    job_dir = GENERATED_DIR / job_id
+
+    if not job_dir.exists():
+        raise HTTPException(status_code=404, detail="Папката със снимки не е намерена.")
+
+    image_files = sorted(job_dir.glob("*.jpg"))
+    base_url = str(request.base_url).rstrip("/")
+    image_urls = [
+        f"{base_url}/image/{job_id}/{image.name}"
+        for image in image_files
+    ]
+
+    return {
+        "job_id": job_id,
+        "image_urls": image_urls,
+        "images_count": len(image_urls)
+    }
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
