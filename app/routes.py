@@ -1,10 +1,12 @@
+import requests
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from .config import GENERATED_DIR
+from .config import GENERATED_DIR, HEADERS
 from .generator import process_encar
 from .image_service import get_image_path
 from .models import GenerateRequest
+from .report_service import build_report_url, extract_report_carid
 
 router = APIRouter()
 
@@ -14,6 +16,27 @@ def generate(request: GenerateRequest):
     try:
         result = process_encar(request.url)
         return result
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post("/report-url")
+def report_url(request: GenerateRequest):
+    try:
+        if "md/sl/mdsl_regcar.do" in request.url:
+            carid = None
+            for part in request.url.split("?")[1].split("&") if "?" in request.url else []:
+                if part.startswith("carid="):
+                    carid = part.split("=", 1)[1]
+                    break
+            if not carid:
+                raise ValueError("Не успях да намеря carid в URL на репорта.")
+            return {"carid": carid, "report_url": request.url}
+
+        detail_html = requests.get(request.url, headers=HEADERS, timeout=30).text
+        carid = extract_report_carid(detail_html)
+        report_url = build_report_url(carid)
+        return {"carid": carid, "report_url": report_url}
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
 

@@ -4,91 +4,607 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>StreamLine Auto - Encar Generator</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, Arial, sans-serif;
+      background: #111111;
+      color: #ffffff;
+      --bg: #111111;
+      --card: #1b1b1b;
+      --accent: #d61c1c;
+      --text-secondary: #bdbdbd;
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 30px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      padding: 18px;
-      max-width: 760px;
-      margin: auto;
-      background: #f5f5f5;
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: #ffffff;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    .page-shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 24px;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top left, rgba(214, 28, 28, 0.32), #000 48%);
+      color: #ffffff;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .logo-text {
+      text-transform: uppercase;
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--text-secondary);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 12px;
     }
 
     h1 {
-      font-size: 24px;
+      margin: 0;
+      font-size: clamp(2rem, 1.6rem + 1vw, 3rem);
+      letter-spacing: -0.03em;
     }
 
-    input, button, textarea, pre {
+    .subtitle {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      max-width: 720px;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      background: rgba(214, 28, 28, 0.14);
+      color: #ffdede;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: 1px solid rgba(214, 28, 28, 0.3);
+    }
+
+    .content-grid {
+      display: grid;
+      gap: 24px;
+      justify-items: center;
+      margin-bottom: 24px;
+    }
+    .content-grid > section {
+      width: min(720px, 100%);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      text-align: center;
+    }
+
+    .card-collapsible {
+      width: min(720px, 100%);
+      max-width: 720px;
+      margin: 0 auto;
+      text-align: center;
+      display: block;
+    }
+
+    .card-collapsible details {
       width: 100%;
-      box-sizing: border-box;
-      font-size: 16px;
-      margin-top: 10px;
     }
 
-    input {
-      padding: 14px;
+    .card-collapsible summary {
+      justify-content: center;
+      gap: 12px;
     }
 
-    button {
-      padding: 14px;
+    .collapse-content {
+      padding: 0 28px 24px;
+      display: grid;
+      gap: 18px;
+      justify-items: center;
+      width: 100%;
+    }
+
+    .collapse-content .step {
+      width: min(680px, 100%);
+      text-align: center;
+    }
+
+    .collapse-content .step p {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card-note {
+      margin: 0 0 18px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    input,
+    textarea,
+    .action-link {
+      width: 100%;
+      border-radius: 18px;
+      background: #141414;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      padding: 16px 18px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: rgba(214, 28, 28, 0.55);
+      transform: translateY(-1px);
+    }
+
+    button,
+    .button-link {
+      cursor: pointer;
       border: none;
-      border-radius: 8px;
-      background: #111;
-      color: white;
-      font-weight: bold;
+      border-radius: 18px;
+      padding: 16px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #ffffff;
+      background: var(--accent);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+
+    button:hover,
+    .button-link:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    .secondary-btn {
+      background: transparent;
+      border: 1px solid rgba(214, 28, 28, 0.65);
+      color: #ffffff;
+    }
+
+    .status-text {
+      margin: 16px 0 0;
+      color: var(--text-secondary);
+      min-height: 1.5em;
+      line-height: 1.6;
+    }
+
+    .result-card {
+      margin-top: 24px;
+      background: #141414;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 22px;
     }
 
     textarea {
-      height: 420px;
-      padding: 12px;
-      white-space: pre-wrap;
+      min-height: 300px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #111111;
+      color: #ffffff;
+      margin-top: 12px;
     }
 
     pre {
-      background: white;
-      padding: 12px;
+      margin: 0;
+      background: #111111;
+      color: #ffffff;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
       white-space: pre-wrap;
-      border-radius: 8px;
+      line-height: 1.7;
+      overflow-x: auto;
     }
 
     .hidden {
       display: none;
     }
 
-    a {
-      display: block;
-      margin-top: 12px;
-      padding: 14px;
-      background: #0a7cff;
-      color: white;
-      text-align: center;
-      border-radius: 8px;
+    .mode-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .mode-button {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      background: #141414;
+      color: #ffffff;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .mode-button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .button-group a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       text-decoration: none;
-      font-weight: bold;
+      background: #222;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .code-block {
+      background: #101010;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f7f7f7;
+      border-radius: 16px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      margin: 8px 0 0;
+    }
+
+    .card-collapsible {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .card-collapsible details {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      background: #141414;
+      padding: 18px 0 0;
+    }
+
+    .card-collapsible summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0 28px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #ffffff;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .card-collapsible summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .card-collapsible summary::after {
+      content: "▼";
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      transform-origin: center;
+      transition: transform 0.2s ease;
+    }
+
+    .card-collapsible details[open] summary::after {
+      transform: rotate(180deg);
+    }
+
+    .collapse-content {
+      padding: 0 28px 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .step {
+      display: grid;
+      gap: 8px;
+      border-radius: 18px;
+      background: #111111;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .step-title {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .step-text {
+      margin: 0;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .download-action {
+      margin-top: 8px;
+    }
+
+    .footer {
+      margin-top: 38px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page-shell {
+        width: min(100%, calc(100% - 24px));
+        padding: 20px 0 32px;
+      }
+
+      .card,
+      .card-collapsible {
+        padding: 24px 20px;
+      }
+
+      .mode-button {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .button-group {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page-shell {
+        width: min(100%, calc(100% - 18px));
+        padding: 18px 0 28px;
+      }
+
+      .card,
+      .card-collapsible {
+        padding: 20px 16px;
+      }
+
+      button,
+      input,
+      .button-link {
+        font-size: 0.95rem;
+      }
+
+      .button-group {
+        grid-template-columns: 1fr;
+      }
+
+      .subtitle {
+        font-size: 0.95rem;
+      }
     }
   </style>
 </head>
 
 <body>
-  <h1>StreamLine Auto</h1>
-  <p>Paste Encar link и генерирай Facebook пост + снимки.</p>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="logo">
+        <img src="logo.jpg" alt="StreamLine Auto logo" />
+      </div>
+      <p class="eyebrow">StreamLine Auto</p>
+      <h1>Encar Assistant</h1>
+      <p class="subtitle">Internal automation tool for StreamLine Auto.</p>
+    </header>
 
-  <input id="url" placeholder="Paste Encar link here..." />
+    <div class="mode-switcher">
+      <button class="mode-button active" id="modePostBtn" onclick="setMode('post')">Facebook Post</button>
+      <button class="mode-button" id="modeReportBtn" onclick="setMode('report')">Open Report</button>
+    </div>
 
-  <button onclick="generate()">Generate</button>
+    <main class="content-grid">
+      <section class="card" id="postCard">
+        <div class="card-title">🚗 Facebook Post Generator</div>
+        <p class="card-note">Paste an Encar URL to generate the Facebook post, image download ZIP and photo workflow.</p>
 
-  <p id="status"></p>
+        <div class="input-group">
+          <label class="field-label" for="url">Encar URL</label>
+          <input id="url" placeholder="Paste Encar link here..." />
+        </div>
+        <button onclick="generate()">Generate</button>
+        <p id="status" class="status-text"></p>
 
-  <div id="result" class="hidden">
-    <h3>Цени</h3>
-    <pre id="priceSummary"></pre>
+        <div id="result" class="result-card hidden">
+          <div class="card-title" style="margin-bottom: 14px;">Results</div>
+          <div style="margin-bottom: 18px;">
+            <div class="field-label">Цени</div>
+            <pre id="priceSummary"></pre>
+          </div>
 
-    <h3>Facebook пост</h3>
-    <textarea id="facebookPost"></textarea>
+          <div style="margin-bottom: 18px;">
+            <div class="field-label">Facebook пост</div>
+            <textarea id="facebookPost"></textarea>
+          </div>
 
-    <button onclick="copyPost()">📋 Copy Facebook Post</button>
-    <button onclick="copyPhotosUrl()">1️⃣ Copy Photos URL</button>
-    <button onclick="runShortcut()">2️⃣ Save Photos to iPhone</button>
-    <a id="downloadZip" href="#" download>📦 Download Images ZIP</a>
+          <div class="button-group">
+            <button onclick="copyPost()">📋 Copy Facebook Post</button>
+            <button onclick="copyPhotosUrl()">1️⃣ Copy Photos URL</button>
+            <button onclick="runShortcut()">2️⃣ Save Photos to iPhone</button>
+          </div>
+
+          <a id="downloadZip" class="button-link" href="#" download>📦 Download Images ZIP</a>
+        </div>
+      </section>
+
+      <section class="card hidden" id="reportCard">
+        <div class="card-title">📋 Encar Report</div>
+        <p class="card-note">Paste an Encar detail or report URL, then open the original inspection report.</p>
+
+        <div class="input-group">
+          <label class="field-label" for="reportUrl">Encar URL</label>
+          <input id="reportUrl" placeholder="Paste Encar detail URL or report URL..." />
+        </div>
+        <button onclick="openOriginalReport()">Open Original Report</button>
+        <p id="reportStatus" class="status-text"></p>
+      </section>
+    </main>
+
+    <section class="card card-collapsible">
+      <details>
+        <summary>📱 iPhone Setup</summary>
+        <div class="collapse-content">
+          <div class="step">
+            <p class="step-title">Step 1</p>
+            <p class="step-text">Create a Photos album named: <strong>StreamLine Auto</strong></p>
+          </div>
+          <div class="step">
+            <p class="step-title">Step 2</p>
+            <p class="step-text">Install the iPhone Shortcut.</p>
+          </div>
+          <div class="step">
+            <p class="step-title">Step 3</p>
+            <p class="step-text">After generating a Facebook post, press "Copy Photos URL".</p>
+          </div>
+          <div class="step">
+            <p class="step-title">Step 4</p>
+            <p class="step-text">Run the Shortcut.</p>
+          </div>
+          <div class="step">
+            <p class="step-title">Step 5</p>
+            <p class="step-text">The images will automatically be saved inside the StreamLine Auto album.</p>
+          </div>
+          <div class="step">
+            <p class="step-title">Shortcut Actions</p>
+            <div class="code-block">1. Find Photos
+Action: Find Photos
+Filter: Album is StreamLine Auto
+
+2. Delete Photos
+Action: Delete Photos
+Input: Photos
+
+3. Get Clipboard
+Action: Get Clipboard
+
+4. Download JSON
+Action: Get Contents of URL
+URL: Clipboard
+Method: GET
+
+5. Parse JSON
+Action: Get Dictionary from Contents of URL
+
+6. Extract image list
+Action: Get Value
+Key: image_urls
+Input: Dictionary
+
+7. Repeat for every image
+Action: Repeat with each item in Dictionary Value
+
+   - Get Contents of URL
+     URL: Repeat Item
+
+   - Save to Photo Album
+     Album: StreamLine Auto
+
+8. End Repeat
+Action: End Repeat
+
+9. Finish
+Action: Stop and Output</div>
+          </div>
+          <div class="download-action">
+            <button class="secondary-btn">Download Shortcut</button>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <footer class="footer">
+      StreamLine Auto Internal Tool<br />
+      Version 1.0
+    </footer>
   </div>
 
   <script>
@@ -166,6 +682,58 @@
         encodeURIComponent(shortcutName);
 
       window.location.href = shortcutUrl;
+    }
+
+    async function openOriginalReport() {
+      const url = document.getElementById("reportUrl").value.trim();
+      const status = document.getElementById("reportStatus");
+
+      if (!url) {
+        alert("Paste-ни Encar линк за репорт първо.");
+        return;
+      }
+
+      status.textContent = "Отварям оригиналния репорт...";
+
+      try {
+        const response = await fetch("/report-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        window.open(data.report_url, "_blank");
+        status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
+      } catch (error) {
+        status.textContent = "Грешка: " + error.message;
+      }
+    }
+
+    function setMode(mode) {
+      const postCard = document.getElementById('postCard');
+      const reportCard = document.getElementById('reportCard');
+      const postBtn = document.getElementById('modePostBtn');
+      const reportBtn = document.getElementById('modeReportBtn');
+
+      if (mode === 'post') {
+        postCard.classList.remove('hidden');
+        reportCard.classList.add('hidden');
+        postBtn.classList.add('active');
+        reportBtn.classList.remove('active');
+      } else {
+        postCard.classList.add('hidden');
+        reportCard.classList.remove('hidden');
+        postBtn.classList.remove('active');
+        reportBtn.classList.add('active');
+      }
     }
   </script>
 </body>
