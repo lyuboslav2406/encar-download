@@ -432,6 +432,7 @@ def process_encar(url: str):
         "price_summary": price_summary,
         "facebook_post": facebook_post,
         "zip_url": f"/download/{job_id}",
+        "photos_url": f"/photos/{job_id}",
         "image_urls": image_urls,
         "images_count": len(image_files)
     }
