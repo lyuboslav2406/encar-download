@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamLine Auto - Encar Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 18px;
+      max-width: 760px;
+      margin: auto;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+
+    input, button, textarea, pre {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    input {
+      padding: 14px;
+    }
+
+    button {
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      background: #111;
+      color: white;
+      font-weight: bold;
+    }
+
+    textarea {
+      height: 420px;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    pre {
+      background: white;
+      padding: 12px;
+      white-space: pre-wrap;
+      border-radius: 8px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    a {
+      display: block;
+      margin-top: 12px;
+      padding: 14px;
+      background: #0a7cff;
+      color: white;
+      text-align: center;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>StreamLine Auto</h1>
+  <p>Paste Encar link и генерирай Facebook пост + снимки.</p>
+
+  <input id="url" placeholder="Paste Encar link here..." />
+
+  <button onclick="generate()">Generate</button>
+
+  <p id="status"></p>
+
+  <div id="result" class="hidden">
+    <h3>Цени</h3>
+    <pre id="priceSummary"></pre>
+
+    <h3>Facebook пост</h3>
+    <textarea id="facebookPost"></textarea>
+
+    <button onclick="copyPost()">Copy Facebook Post</button>
+
+    <a id="downloadZip" href="#" download>Download Images ZIP</a>
+  </div>
+
+  <script>
+    async function generate() {
+      const url = document.getElementById("url").value.trim();
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+
+      if (!url) {
+        alert("Paste-ни Encar линк първо.");
+        return;
+      }
+
+      result.classList.add("hidden");
+      status.textContent = "Генерирам... изчакай 15-30 секунди.";
+
+      try {
+        const response = await fetch("/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        document.getElementById("priceSummary").textContent = data.price_summary;
+        document.getElementById("facebookPost").value = data.facebook_post;
+        document.getElementById("downloadZip").href = data.zip_url;
+
+        status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
+        result.classList.remove("hidden");
+      } catch (error) {
+        status.textContent = "Грешка: " + error.message;
+      }
+    }
+
+    async function copyPost() {
+      const text = document.getElementById("facebookPost").value;
+
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("Facebook постът е копиран.");
+      } catch (e) {
+        alert("Не успях да копирам. Маркирай текста ръчно.");
+      }
+    }
+  </script>
+</body>
+</html>
