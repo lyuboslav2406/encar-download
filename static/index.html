@@ -178,18 +178,23 @@
       }
     }
 
-    function savePhotosToIphone() {
+    async function savePhotosToIphone() {
       if (!latestPhotosUrl) {
         alert("Няма генерирани снимки още.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(latestPhotosUrl);
+      } catch (e) {
+        alert("Не успях да копирам Photos URL.");
         return;
       }
 
       const shortcutName = "SaveStreamLinePhotos";
       const shortcutUrl =
         "shortcuts://run-shortcut?name=" +
-        encodeURIComponent(shortcutName) +
-        "&input=text&text=" +
-        encodeURIComponent(latestPhotosUrl);
+        encodeURIComponent(shortcutName);
 
       window.location.href = shortcutUrl;
     }
