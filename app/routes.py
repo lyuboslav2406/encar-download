@@ -3,10 +3,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from .config import GENERATED_DIR, HEADERS
-from .generator import process_encar
+from .generator import process_encar, process_price_summary
 from .image_service import get_image_path
 from .models import GenerateRequest
-from .report_service import build_report_url, extract_report_carid
+from .report_service import build_insurance_url, build_report_url, extract_carid_from_url, extract_report_carid
 
 router = APIRouter()
 
@@ -24,19 +24,40 @@ def generate(request: GenerateRequest):
 def report_url(request: GenerateRequest):
     try:
         if "md/sl/mdsl_regcar.do" in request.url:
-            carid = None
-            for part in request.url.split("?")[1].split("&") if "?" in request.url else []:
-                if part.startswith("carid="):
-                    carid = part.split("=", 1)[1]
-                    break
+            carid = extract_carid_from_url(request.url)
             if not carid:
                 raise ValueError("Не успях да намеря carid в URL на репорта.")
             return {"carid": carid, "report_url": request.url}
 
-        detail_html = requests.get(request.url, headers=HEADERS, timeout=30).text
-        carid = extract_report_carid(detail_html)
+        carid = extract_carid_from_url(request.url)
+        if not carid:
+            detail_html = requests.get(request.url, headers=HEADERS, timeout=30).text
+            carid = extract_report_carid(detail_html)
+
         report_url = build_report_url(carid)
         return {"carid": carid, "report_url": report_url}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post("/insurance-url")
+def insurance_url(request: GenerateRequest):
+    try:
+        carid = extract_carid_from_url(request.url)
+        if not carid:
+            detail_html = requests.get(request.url, headers=HEADERS, timeout=30).text
+            carid = extract_report_carid(detail_html)
+
+        report_url = build_insurance_url(carid)
+        return {"carid": carid, "report_url": report_url}
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post("/price-summary")
+def price_summary(request: GenerateRequest):
+    try:
+        return process_price_summary(request.url)
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
 

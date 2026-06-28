@@ -516,20 +516,29 @@
       <p class="subtitle">Internal automation tool for StreamLine Auto.</p>
     </header>
 
+    <section class="card" id="urlCard">
+      <div class="card-title">🔗 Encar URL</div>
+      <p class="card-note">Paste the Encar URL once here, then use any mode without re-pasting.</p>
+
+      <div class="input-group">
+        <label class="field-label" for="sharedUrlInput">Encar URL</label>
+        <input id="sharedUrlInput" placeholder="Paste Encar link here..." />
+      </div>
+      <button onclick="setSharedUrl()">Set URL</button>
+      <p id="urlStatus" class="status-text"></p>
+    </section>
+
     <div class="mode-switcher">
       <button class="mode-button active" id="modePostBtn" onclick="setMode('post')">Facebook Post</button>
-      <button class="mode-button" id="modeReportBtn" onclick="setMode('report')">Open Report</button>
+      <button class="mode-button" id="modeReportBtn" onclick="setMode('report')">Car Report</button>
+      <button class="mode-button" id="modeInsuranceBtn" onclick="setMode('insurance')">Insurance History</button>
+      <button class="mode-button" id="modePriceBtn" onclick="setMode('price')">Car Price</button>
     </div>
 
     <main class="content-grid">
       <section class="card" id="postCard">
         <div class="card-title">🚗 Facebook Post Generator</div>
-        <p class="card-note">Paste an Encar URL to generate the Facebook post, image download ZIP and photo workflow.</p>
-
-        <div class="input-group">
-          <label class="field-label" for="url">Encar URL</label>
-          <input id="url" placeholder="Paste Encar link here..." />
-        </div>
+        <p class="card-note">Use the shared URL above to generate the Facebook post, image ZIP and photo workflow.</p>
         <button onclick="generate()">Generate</button>
         <p id="status" class="status-text"></p>
 
@@ -556,15 +565,29 @@
       </section>
 
       <section class="card hidden" id="reportCard">
-        <div class="card-title">📋 Encar Report</div>
-        <p class="card-note">Paste an Encar detail or report URL, then open the original inspection report.</p>
-
-        <div class="input-group">
-          <label class="field-label" for="reportUrl">Encar URL</label>
-          <input id="reportUrl" placeholder="Paste Encar detail URL or report URL..." />
-        </div>
-        <button onclick="openOriginalReport()">Open Original Report</button>
+        <div class="card-title">📋 Car Report</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Open Car Report.</p>
+        <button onclick="openCarReport()">Open Car Report</button>
         <p id="reportStatus" class="status-text"></p>
+      </section>
+
+      <section class="card hidden" id="insuranceCard">
+        <div class="card-title">🛡️ Insurance History</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Open Insurance History.</p>
+        <button onclick="openInsuranceHistory()">Open Insurance History</button>
+        <p id="insuranceStatus" class="status-text"></p>
+      </section>
+
+      <section class="card hidden" id="priceCard">
+        <div class="card-title">💰 Car Price</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Get Price Summary.</p>
+        <button onclick="getPriceSummary()">Get Price Summary</button>
+        <p id="priceStatus" class="status-text"></p>
+
+        <div id="priceResult" class="result-card hidden">
+          <div class="field-label">Price Summary</div>
+          <pre id="priceSummaryResult"></pre>
+        </div>
       </section>
     </main>
 
@@ -648,11 +671,16 @@ Action: Stop and Output</div>
 
   <script>
     let latestPhotosUrl = "";
+    let sharedUrl = "";
 
     async function generate() {
-      const url = document.getElementById("url").value.trim();
+      let url = document.getElementById("sharedUrlInput").value.trim();
       const status = document.getElementById("status");
       const result = document.getElementById("result");
+
+      if (!url) {
+        url = sharedUrl;
+      }
 
       if (!url) {
         alert("Paste-ни Encar линк първо.");
@@ -676,6 +704,9 @@ Action: Stop and Output</div>
         if (!response.ok) {
           throw new Error(data.detail || "Unknown error");
         }
+
+        sharedUrl = url;
+        document.getElementById("sharedUrlInput").value = url;
 
         document.getElementById("priceSummary").textContent = data.price_summary;
         document.getElementById("facebookPost").value = data.facebook_post;
@@ -723,16 +754,36 @@ Action: Stop and Output</div>
       window.location.href = shortcutUrl;
     }
 
-    async function openOriginalReport() {
-      const url = document.getElementById("reportUrl").value.trim();
-      const status = document.getElementById("reportStatus");
+    function setSharedUrl() {
+      const urlInput = document.getElementById("sharedUrlInput");
+      const status = document.getElementById("urlStatus");
+      const url = urlInput.value.trim();
 
       if (!url) {
-        alert("Paste-ни Encar линк за репорт първо.");
+        status.textContent = "Paste-ни Encar линк първо.";
         return;
       }
 
-      status.textContent = "Отварям оригиналния репорт...";
+      sharedUrl = url;
+      status.textContent = "URL зададен. Използвай желания режим.";
+    }
+
+    async function openCarReport() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("reportStatus");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Paste-ни Encar линк за Car Report първо.");
+        return;
+      }
+
+      sharedUrl = url;
+      document.getElementById("sharedUrlInput").value = url;
+      status.textContent = "Отварям Car Report...";
 
       try {
         const response = await fetch("/report-url", {
@@ -756,23 +807,106 @@ Action: Stop and Output</div>
       }
     }
 
+    async function openInsuranceHistory() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("insuranceStatus");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Paste-ни Encar линк за Insurance History първо.");
+        return;
+      }
+
+      sharedUrl = url;
+      document.getElementById("sharedUrlInput").value = url;
+      status.textContent = "Отварям Insurance History...";
+
+      try {
+        const response = await fetch("/insurance-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        window.open(data.report_url, "_blank");
+        status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
+      } catch (error) {
+        status.textContent = "Грешка: " + error.message;
+      }
+    }
+
+    async function getPriceSummary() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("priceStatus");
+      const priceResult = document.getElementById("priceResult");
+      const priceSummaryResult = document.getElementById("priceSummaryResult");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Paste-ни Encar линк за Car Price първо.");
+        return;
+      }
+
+      sharedUrl = url;
+      priceResult.classList.add("hidden");
+      status.textContent = "Зареждам ценово резюме...";
+
+      try {
+        const response = await fetch("/price-summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        priceSummaryResult.textContent = data.price_summary;
+        priceResult.classList.remove("hidden");
+        status.textContent = "Готово.";
+      } catch (error) {
+        status.textContent = "Грешка: " + error.message;
+      }
+    }
+
     function setMode(mode) {
       const postCard = document.getElementById('postCard');
       const reportCard = document.getElementById('reportCard');
+      const insuranceCard = document.getElementById('insuranceCard');
+      const priceCard = document.getElementById('priceCard');
       const postBtn = document.getElementById('modePostBtn');
       const reportBtn = document.getElementById('modeReportBtn');
+      const insuranceBtn = document.getElementById('modeInsuranceBtn');
+      const priceBtn = document.getElementById('modePriceBtn');
 
-      if (mode === 'post') {
-        postCard.classList.remove('hidden');
-        reportCard.classList.add('hidden');
-        postBtn.classList.add('active');
-        reportBtn.classList.remove('active');
-      } else {
-        postCard.classList.add('hidden');
-        reportCard.classList.remove('hidden');
-        postBtn.classList.remove('active');
-        reportBtn.classList.add('active');
-      }
+      postCard.classList.toggle('hidden', mode !== 'post');
+      reportCard.classList.toggle('hidden', mode !== 'report');
+      insuranceCard.classList.toggle('hidden', mode !== 'insurance');
+      priceCard.classList.toggle('hidden', mode !== 'price');
+
+      postBtn.classList.toggle('active', mode === 'post');
+      reportBtn.classList.toggle('active', mode === 'report');
+      insuranceBtn.classList.toggle('active', mode === 'insurance');
+      priceBtn.classList.toggle('active', mode === 'price');
     }
   </script>
 </body>
