@@ -69,3 +69,25 @@ def process_encar(url: str):
         "photos_url": f"/photos/{job_id}",
         "images_count": len(image_files)
     }
+
+
+def process_price_summary(url: str):
+    html = download_html(url)
+
+    price_krw = extract_price_krw(html)
+    car_year = extract_year(html)
+    mileage = extract_mileage(html)
+
+    base_price_eur = krw_to_eur(price_krw)
+    final_price_eur, extra_cost = calculate_final_price_eur(base_price_eur, car_year)
+
+    price_summary = f"""Година: {car_year}
+Пробег: {format_km(mileage)} km
+Цена в Encar: {price_krw:,} KRW
+Цена в Encar превалутирана в евро: {format_eur(round(base_price_eur))} €
+Добавена доставка/комисионна: {format_eur(extra_cost)} €
+Крайна цена до България: {format_eur(final_price_eur)} €""".replace(",", " ")
+
+    return {
+        "price_summary": price_summary
+    }
