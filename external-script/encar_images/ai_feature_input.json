@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "manufacturer": "Mercedes-Benz",
+    "model": "GLE-클래스 W167",
+    "grade": "GLE300d 4MATIC",
+    "grade_detail": null,
+    "drivetrain_designation": "4MATIC",
+    "detail_query_car_id": 41237726,
+    "vehicle_id": 41232209,
+    "incomplete_data": false
+  },
+  "primary_option_evidence_block": "- [Exterior / Interior] 헤드램프 (code: 001)\n- [Safety] 에어백 (code: 002)\n- [Convenience / Multimedia] 크루즈 컨트롤 (code: 004)\n- [Convenience / Multimedia] 커튼/블라인드 (code: 005)\n- [Exterior / Interior] 파워 도어록 (code: 006)\n- [Exterior / Interior] 파워 윈도우 (code: 007)\n- [Exterior / Interior] 파워 스티어링 휠 (code: 008)\n- [Exterior / Interior] 선루프 (code: 010)\n- [Seat] 가죽시트 (code: 014)\n- [Convenience / Multimedia] 무선도어 잠금장치 (code: 015)\n- [Exterior / Interior] 알루미늄 휠 (code: 017)\n- [Safety] 미끄럼 방지(TCS) (code: 019)\n- [Safety] 에어백(사이드) (code: 020)\n- [Seat] 전동시트(운전석) (code: 021)\n- [Seat] 열선시트(앞좌석) (code: 022)\n- [Convenience / Multimedia] 자동 에어컨 (code: 023)\n- [Exterior / Interior] 전동접이 사이드 미러 (code: 024)\n- [Safety] 에어백(운전석) (code: 026)\n- [Safety] 에어백(동승석) (code: 027)\n- [Exterior / Interior] ECM 룸미러 (code: 030)\n- [Exterior / Interior] 스티어링 휠 리모컨 (code: 031)\n- [Safety] 주차감지센서(후방) (code: 032)\n- [Safety] 타이어 공기압센서(TPMS) (code: 033)\n- [Seat] 통풍시트(운전석) (code: 034)\n- [Seat] 전동시트(동승석) (code: 035)\n- [Seat] 메모리 시트(운전석) (code: 051)\n- [Safety] 차체자세 제어장치(ESC) (code: 055)\n- [Safety] 에어백(커튼) (code: 056)\n- [Convenience / Multimedia] 스마트키 (code: 057)\n- [Safety] 후방 카메라 (code: 058)\n- [Exterior / Interior] 파워 전동 트렁크 (code: 059)\n- [Exterior / Interior] 루프랙 (code: 062)\n- [Seat] 열선시트(뒷좌석) (code: 063)\n- [Convenience / Multimedia] USB 단자 (code: 072)\n- [Exterior / Interior] 하이패스 (code: 074)\n- [Exterior / Interior] 헤드램프(LED) (code: 075)\n- [Seat] 통풍시트(동승석) (code: 077)\n- [Seat] 메모리 시트(동승석) (code: 078)\n- [Convenience / Multimedia] 크루즈 컨트롤(어댑티브) (code: 079)\n- [Exterior / Interior] 고스트 도어 클로징 (code: 080)\n- [Convenience / Multimedia] 레인센서 (code: 081)\n- [Exterior / Interior] 열선 스티어링 휠 (code: 082)\n- [Exterior / Interior] 전동 조절 스티어링 휠 (code: 083)\n- [Exterior / Interior] 패들 시프트 (code: 084)\n- [Safety] 주차감지센서(전방) (code: 085)\n- [Safety] 후측방 경보 시스템 (code: 086)\n- [Safety] 360도 어라운드 뷰 (code: 087)\n- [Safety] 차선이탈 경보 시스템(LDWS) (code: 088)\n- [Convenience / Multimedia] 전자식 주차브레이크(EPB) (code: 094)\n- [Convenience / Multimedia] 헤드업 디스플레이(HUD) (code: 095)\n- [Convenience / Multimedia] 블루투스 (code: 096)\n- [Convenience / Multimedia] 오토 라이트 (code: 097)",
+  "main_options_evidence_block": "- 선루프\n- 헤드램프 (LED)\n- 주차감지센서\n- 후방카메라\n- 자동에어컨\n- 스마트키\n- 내비게이션\n- 열선시트\n- 통풍시트\n- 가죽시트",
+  "raw_car_text_length": 2730,
+  "options_passed_to_ai_count": 52,
+  "incomplete_data": false
+}

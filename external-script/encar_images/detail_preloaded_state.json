@@ -1,0 +1,1740 @@
+{
+  "pender": {
+    "pending": {
+      "cars/GET_BASE": false,
+      "cars/GET_DETAIL_SERVER_DRIVEN": false,
+      "cars/POST_NEW_CAR_PRICE_ACCESS_KEY": false
+    },
+    "success": {
+      "cars/GET_BASE": true,
+      "cars/GET_DETAIL_SERVER_DRIVEN": true,
+      "cars/POST_NEW_CAR_PRICE_ACCESS_KEY": true
+    },
+    "failure": {
+      "cars/GET_BASE": false,
+      "cars/GET_DETAIL_SERVER_DRIVEN": false,
+      "cars/POST_NEW_CAR_PRICE_ACCESS_KEY": false
+    }
+  },
+  "homeservice": {
+    "estimate": {
+      "init": false,
+      "estimateInfo": {},
+      "paymentEstimateInfo": {
+        "appliedCoupons": [],
+        "totalDiscountAmount": 0,
+        "carPrice": 0,
+        "transferCost": 0,
+        "transferAgencyFee": 0,
+        "onlineVehicleTransferAgencyFee": 0,
+        "sellingCost": 0,
+        "consignmentFee": 0,
+        "consignmentFeeByStarting": [],
+        "userFee": 0,
+        "extendedWarrantyCost": 0,
+        "extendedWarrantyMonth": 0,
+        "sellerFee": 0,
+        "completedPaymentAmount": 0,
+        "encarPayLoan": {
+          "loanAmount": 0,
+          "downPayment": 0,
+          "loanLimitGap": 0
+        },
+        "encarLoan": {
+          "loanAmount": 0
+        },
+        "liabilityInsuranceFee": 0,
+        "total": 0
+      }
+    },
+    "reapply": {
+      "isInitModify": false,
+      "isReapplyLoading": false,
+      "isReapplyCallbackEnter": false,
+      "param": {
+        "carId": null,
+        "paymentMethod": null,
+        "firstPaymentMethod": null,
+        "applicationMethod": "MOBILE",
+        "extendedWarrantyMonth": 0,
+        "loanVersion": null,
+        "applicant": {
+          "id": 0,
+          "userId": "",
+          "name": "",
+          "phone": "",
+          "email": "",
+          "refundAccount": {
+            "name": "",
+            "bank": "",
+            "number": ""
+          },
+          "shippingAddress": {
+            "buildingCd": "",
+            "detail": "",
+            "zipCd": "",
+            "addressDetail": ""
+          }
+        },
+        "nominees": [
+          {
+            "nomineeType": "PERSONAL_MAIN",
+            "name": "",
+            "phone": "",
+            "email": "",
+            "gender": null,
+            "birth": "",
+            "invoice": {
+              "email": ""
+            },
+            "ownershipRate": 100,
+            "postalAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            },
+            "certifiedAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            },
+            "corporateName": "",
+            "businessName": "",
+            "businessNumber": "",
+            "businessAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            }
+          },
+          {
+            "nomineeType": "",
+            "name": "",
+            "phone": "",
+            "email": "",
+            "gender": "",
+            "birth": "",
+            "ownershipRate": 0,
+            "certifiedAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            }
+          }
+        ]
+      },
+      "ui": {
+        "isLoading": false,
+        "isSameAccount": false,
+        "isSameRequest": false,
+        "isSameNomineesRequest": false,
+        "isSameBusinessAddressAsPostalAddress": false,
+        "isSameCertifiedAddressAsPostalAddress": false,
+        "isSameNominees": false,
+        "isSameBusinessAddress": false,
+        "allTermsFinance": false,
+        "certificationNumber": "",
+        "phoneKey": {},
+        "phoneKeyAuth": false,
+        "phoneTimer": 180,
+        "isTimeout": false,
+        "hasWarranty": false,
+        "hasAdvertisement": false,
+        "warrantyList": [],
+        "loanTerms": {
+          "loanPersonalInfo": false,
+          "loanPersonalOffer": false,
+          "agreeLoanTerms": false
+        },
+        "warrantyTerms": {
+          "privacyWarranty": false,
+          "provide": false,
+          "refundWarranty": false
+        },
+        "isAvailableModify": false,
+        "isTermsAgreement": false,
+        "isLoanTerms": false
+      },
+      "validation": {
+        "name": false,
+        "phone": false,
+        "phoneAuth": false,
+        "nameText": "",
+        "phoneText": "",
+        "phoneAuthText": "",
+        "terms": {
+          "privacyWarranty": false,
+          "provide": false,
+          "refundWarranty": false
+        },
+        "shippingAddress": false,
+        "shippingAddressText": "",
+        "birth": false,
+        "birthText": ""
+      },
+      "validationNominees": {
+        "name": false,
+        "name2": false,
+        "phone": false,
+        "phone2": false,
+        "postalAddress": false,
+        "businessAddress": false,
+        "invoiceEmail": false,
+        "nameText": "",
+        "nameText2": "",
+        "phoneText": "",
+        "phoneText2": "",
+        "postalAddressText": "",
+        "businessAddressText": "",
+        "invoiceEmailText": "",
+        "ownershipRate": false,
+        "ownershipRateText": "",
+        "nomineesOwnershipRate": false,
+        "nomineesownershipRateText": "",
+        "businessNumber": false,
+        "businessNumberText": "",
+        "corporateName": false,
+        "corporateNameText": "",
+        "birth": false,
+        "birthText": ""
+      },
+      "reapplyInfo": {
+        "isHsReapply": false,
+        "uuid": ""
+      },
+      "encarPayHash": "",
+      "deliveryCouponId": null
+    }
+  },
+  "encarpay": {
+    "apply": {
+      "carId": null,
+      "applicationId": null,
+      "carMaximumLimit": null,
+      "showTerms": false,
+      "showEncarpayLimitLayer": false,
+      "inflow": null,
+      "applicationStorage": {},
+      "interestInfo": [],
+      "error": null,
+      "judgementStatus": null,
+      "loanTerms": {
+        "loanPersonalInfo": false,
+        "loanPersonalOffer": false
+      },
+      "redirectURL": "",
+      "backURL": "",
+      "mainInterestRate": 0,
+      "oneStopInfo": {},
+      "abTestType": null
+    },
+    "method": {
+      "paymentType": "ONCE"
+    }
+  },
+  "loan": {
+    "sendLimitCheck": {
+      "phnno": "",
+      "carNo": "",
+      "statusSendUri": ""
+    },
+    "counselor": {
+      "counselorList": null
+    }
+  },
+  "auth": {
+    "isLoggedIn": null,
+    "user": null,
+    "userInfo": null
+  },
+  "carInfo": {
+    "car": {},
+    "photo": [],
+    "diagnosis": {},
+    "inspect": {},
+    "estimate": {},
+    "reregist": {}
+  },
+  "address": {
+    "address": "",
+    "currentAddress": "",
+    "buildingCd": "",
+    "addressList": [],
+    "isExist": {
+      "none": false,
+      "max": false
+    },
+    "region": "",
+    "state": "",
+    "postalCd": "",
+    "roadPart": "",
+    "detailPart": "",
+    "sidoCode": "",
+    "sidoName": "",
+    "sigunguCode": "",
+    "sigunguName": ""
+  },
+  "tooltip": {
+    "show": false,
+    "style": {},
+    "offset": null,
+    "content": "",
+    "className": ""
+  },
+  "model": {
+    "searchInfo": {},
+    "validate": {
+      "loan": false,
+      "advance": false
+    },
+    "manufactButtonText": "제조사",
+    "categoryButtonText": "차종",
+    "yearButtonText": "연식",
+    "manufactSelected": false,
+    "categorySelected": false,
+    "yearSelected": false,
+    "model": [],
+    "price": {},
+    "img": [],
+    "pageSize": 10,
+    "limitPage": 0
+  },
+  "ryvuss": {
+    "isInit": false,
+    "nav": [],
+    "manufacturer": {},
+    "manufacturerY": [],
+    "manufacturerN": [],
+    "category": {},
+    "year": {},
+    "model": [],
+    "badgeGroup": {},
+    "hot": []
+  },
+  "saleCar": {
+    "searchInfo": {},
+    "title": "",
+    "order": "PriceAsc",
+    "offset": "0",
+    "size": "400",
+    "count": 0,
+    "car": [],
+    "badge": [],
+    "badgeGroup": []
+  },
+  "company": {
+    "news": {
+      "isInit": false,
+      "isNone": false,
+      "listData": [],
+      "totalCount": 0
+    },
+    "newsview": {
+      "isInit": false,
+      "viewData": null
+    },
+    "media": {
+      "isInit": false,
+      "isNone": false,
+      "listData": [],
+      "totalCount": 0
+    }
+  },
+  "page": {
+    "pageType": "",
+    "hideLayout": false,
+    "scrollY": 0,
+    "pageClass": "",
+    "scrollTargetId": ""
+  },
+  "estimate": {
+    "init": {
+      "review": false,
+      "reviewDetail": false,
+      "dealer": false,
+      "sheet": false
+    },
+    "time": {},
+    "review": {},
+    "reviewDetail": {},
+    "reviewDealerContent": [],
+    "dealer": {},
+    "dealerSimple": {},
+    "dealerProfile": {},
+    "car": {},
+    "bid": {},
+    "bidDealer": {},
+    "bids": [],
+    "requestReview": {
+      "description": "",
+      "dealPrice": 0,
+      "rating": 5,
+      "failedReason": {
+        "DISSATISFIED_QUOTE": false,
+        "FALSE_ESTIMATE": false,
+        "CANT_CONTACTED": false,
+        "NOT_KIND": false,
+        "UNFAIR_DEPRECIATION": false,
+        "JUST_ESTIMATE": false,
+        "ETC": false
+      }
+    },
+    "applyCommon": {
+      "temporaryId": "",
+      "estimateId": null,
+      "carNumber": ""
+    },
+    "carStatus": {
+      "temp": {
+        "smartKeyCount": null,
+        "panelScratchCount": null,
+        "wheelScratchCount": null,
+        "badTireStatusType": null,
+        "additionalRepairNeededPart": "",
+        "exchangeType": null,
+        "exchangeComment": "",
+        "panel": {
+          "frontBumper": null,
+          "radiatorSupport": null,
+          "bonnet": null,
+          "roofPanel": null,
+          "trunkDoor": null,
+          "rearBumper": null,
+          "frontSidePanelLeft": null,
+          "frontSidePanelRight": null,
+          "frontDoorLeft": null,
+          "frontDoorRight": null,
+          "rearDoorLeft": null,
+          "rearDoorRight": null
+        },
+        "frame": {
+          "frontPanel": null,
+          "sideMemberLeft": null,
+          "sideMemberRight": null,
+          "crossMember": null,
+          "floorPanel": null,
+          "rearWheelHouseLeft": null,
+          "rearWheelHouseRight": null,
+          "trunkFloor": null,
+          "rearPanel": null,
+          "frontInsidePanelLeft": null,
+          "frontInsidePanelRight": null,
+          "frontWheelHouseLeft": null,
+          "frontWheelHouseRight": null,
+          "frontPillarLeft": null,
+          "frontPillarRight": null,
+          "middlePillarLeft": null,
+          "middlePillarRight": null,
+          "rearPillarLeft": null,
+          "rearPillarRight": null,
+          "sideSillPanelLeft": null,
+          "sideSillPanelRight": null,
+          "rearSidePanelLeft": null,
+          "rearSidePanelRight": null
+        },
+        "additionalComment": {
+          "YES": "",
+          "UNKNOWN": ""
+        }
+      },
+      "origin": {
+        "smartKeyCount": null,
+        "panelScratchCount": null,
+        "wheelScratchCount": null,
+        "badTireStatusType": null,
+        "additionalRepairNeededPart": "",
+        "exchangeType": null,
+        "exchangeComment": "",
+        "panel": {
+          "frontBumper": null,
+          "radiatorSupport": null,
+          "bonnet": null,
+          "roofPanel": null,
+          "trunkDoor": null,
+          "rearBumper": null,
+          "frontSidePanelLeft": null,
+          "frontSidePanelRight": null,
+          "frontDoorLeft": null,
+          "frontDoorRight": null,
+          "rearDoorLeft": null,
+          "rearDoorRight": null
+        },
+        "frame": {
+          "frontPanel": null,
+          "sideMemberLeft": null,
+          "sideMemberRight": null,
+          "crossMember": null,
+          "floorPanel": null,
+          "rearWheelHouseLeft": null,
+          "rearWheelHouseRight": null,
+          "trunkFloor": null,
+          "rearPanel": null,
+          "frontInsidePanelLeft": null,
+          "frontInsidePanelRight": null,
+          "frontWheelHouseLeft": null,
+          "frontWheelHouseRight": null,
+          "frontPillarLeft": null,
+          "frontPillarRight": null,
+          "middlePillarLeft": null,
+          "middlePillarRight": null,
+          "rearPillarLeft": null,
+          "rearPillarRight": null,
+          "sideSillPanelLeft": null,
+          "sideSillPanelRight": null,
+          "rearSidePanelLeft": null,
+          "rearSidePanelRight": null
+        },
+        "additionalComment": {
+          "YES": "",
+          "UNKNOWN": ""
+        }
+      }
+    },
+    "proApplyInfo": {
+      "origin": {
+        "centerId": null,
+        "region": "",
+        "state": "",
+        "sidoCode": "",
+        "sidoName": "",
+        "sigunguCode": "",
+        "sigunguName": "",
+        "buildingCode": "",
+        "postalCode": "",
+        "roadPart": "",
+        "detailPart": "",
+        "wishPrice": "",
+        "sellerName": "",
+        "sellerPhoneNumber": "",
+        "phoneCertificationInfo": "",
+        "code": "",
+        "date": "",
+        "time": "",
+        "codeExpireTime": "",
+        "isPhoneCertificatied": false,
+        "agrees": {
+          "all": false,
+          "terms": false,
+          "privacy": false,
+          "thirdParties": false,
+          "marketing": false,
+          "electronicMedia": false
+        },
+        "availableDateTimeList": [],
+        "viewBanner": false,
+        "isSameAddress": true,
+        "inputCurrentTime": "",
+        "inputEndTime": "",
+        "isShowHolidayLayer": false,
+        "isReserve": false
+      },
+      "temp": {
+        "centerId": null,
+        "region": "",
+        "state": "",
+        "sidoCode": "",
+        "sidoName": "",
+        "sigunguCode": "",
+        "sigunguName": "",
+        "buildingCode": "",
+        "postalCode": "",
+        "roadPart": "",
+        "detailPart": "",
+        "wishPrice": "",
+        "sellerName": "",
+        "sellerPhoneNumber": "",
+        "phoneCertificationInfo": "",
+        "code": "",
+        "date": "",
+        "time": "",
+        "codeExpireTime": "",
+        "isPhoneCertificatied": false,
+        "agrees": {
+          "all": false,
+          "terms": false,
+          "privacy": false,
+          "thirdParties": false,
+          "marketing": false,
+          "electronicMedia": false
+        },
+        "availableDateTimeList": [],
+        "viewBanner": false,
+        "isSameAddress": true,
+        "inputCurrentTime": "",
+        "inputEndTime": "",
+        "isShowHolidayLayer": false,
+        "isReserve": false
+      }
+    },
+    "proDeliveryInfo": {
+      "origin": {
+        "region": "",
+        "state": "",
+        "buildingCode": "",
+        "postalCode": "",
+        "roadPart": "",
+        "detailPart": "",
+        "date": "",
+        "time": "",
+        "availableDateTimeList": [],
+        "accountHolderName": "",
+        "bankCode": "",
+        "accountNumber": ""
+      },
+      "temp": {
+        "region": "",
+        "state": "",
+        "buildingCode": "",
+        "postalCode": "",
+        "roadPart": "",
+        "detailPart": "",
+        "date": "",
+        "time": "",
+        "availableDateTimeList": [],
+        "accountHolderName": "",
+        "bankCode": "",
+        "accountNumber": ""
+      }
+    },
+    "proContractImg": {
+      "basic": "",
+      "detail": ""
+    },
+    "depreciationHistory": {
+      "content": [],
+      "pageable": {
+        "pageNumber": 0
+      }
+    },
+    "depreciationHistoryForSeller": {
+      "content": [],
+      "pageable": {
+        "pageNumber": 0
+      }
+    },
+    "hometaxBusinessTypeList": [],
+    "ownerNames": [],
+    "corporateSellerStatus": false
+  },
+  "cars": {
+    "isRefresh": false,
+    "detailFlags": {
+      "isAvailableMoveToDummy": false,
+      "isBrandCertification": null,
+      "isBrandCertificationDomestic": false,
+      "isAffiliateRent": false,
+      "isAffiliateLease": false,
+      "isCarVerification": true,
+      "isCompensate": false,
+      "isDealer": true,
+      "isDiagnosisExist": true,
+      "isExtendWarranty": false,
+      "isHomeService": true,
+      "isInsuranceExist": true,
+      "isHistoryView": true,
+      "isMeetgo": false,
+      "isDummySafetyZone": false,
+      "isSafetyZoneExpert": false,
+      "isTruck": false,
+      "adStatus": "advertise",
+      "advertisementType": "AD_DUMMY",
+      "encarDiagnosisTag": "DIAGNOSIS_P",
+      "inspectType": "INSPECT",
+      "leaseRentType": "NO_TYPE",
+      "encarServiceType": "onlyHomeservice"
+    },
+    "base": {
+      "manage": {
+        "dummy": true,
+        "dummyVehicleId": 41237726,
+        "reRegistered": true,
+        "webReserved": true,
+        "registDateTime": "2025-12-26T08:40:27",
+        "firstAdvertisedDateTime": "2026-06-30T09:22:58",
+        "modifyDateTime": "2026-06-30T09:23:03",
+        "subscribeCount": 0,
+        "viewCount": 83
+      },
+      "category": {
+        "type": "CAR",
+        "manufacturerCd": "013",
+        "manufacturerName": "벤츠",
+        "modelCd": "085",
+        "modelName": "GLE-클래스 W167",
+        "gradeCd": "001",
+        "gradeName": "GLE300d 4MATIC",
+        "gradeEnglishName": "GLE300d 4MATIC",
+        "yearMonth": "202306",
+        "formYear": "2023",
+        "domestic": false,
+        "importType": "REGULAR_IMPORT",
+        "originPrice": 10950,
+        "manufacturerEnglishName": "Mercedes-Benz",
+        "modelGroupCd": "035",
+        "modelGroupName": "GLE-클래스",
+        "modelGroupEnglishName": "GLE-Class",
+        "gradeDetailCd": null,
+        "gradeDetailName": null,
+        "gradeDetailEnglishName": null,
+        "jatoVehicleId": 748751820220922,
+        "warranty": {
+          "userDefined": true,
+          "companyName": null,
+          "bodyMonth": 36,
+          "bodyMileage": 100000,
+          "transmissionMonth": 36,
+          "transmissionMileage": 100000
+        }
+      },
+      "advertisement": {
+        "type": "CAR",
+        "price": 9500,
+        "status": "ADVERTISE",
+        "warrantyStyleColor": "BLACK",
+        "trust": [
+          "HomeService",
+          "Warranty"
+        ],
+        "hotMark": [],
+        "oneLineText": null,
+        "salesStatus": null,
+        "directInspected": false,
+        "preVerified": true,
+        "extendWarranty": false,
+        "deemedExtendWarranty": false,
+        "homeService": true,
+        "meetGo": false,
+        "encarCheck": false,
+        "preDelivery": false,
+        "leaseRentInfo": null,
+        "encarPassType": null,
+        "encarPassCategoryType": null,
+        "underBodyPhotos": [],
+        "hasUnderBodyPhoto": false,
+        "advertisementType": "NORMAL",
+        "diagnosisCar": true
+      },
+      "contact": {
+        "userId": "oracle0224",
+        "userType": "DEALER",
+        "no": "05062355043",
+        "address": "부산 남구",
+        "contactType": "MOBILE",
+        "isVerifyOwner": false,
+        "isOwnerPartner": true
+      },
+      "spec": {
+        "type": "CAR",
+        "mileage": 54736,
+        "displacement": 1993,
+        "transmissionName": "오토",
+        "fuelCd": "002",
+        "fuelName": "디젤",
+        "colorName": "흰색",
+        "customColor": null,
+        "seatCount": 5,
+        "tradeType": "B",
+        "tradeOwnerType": "S",
+        "tradeCompanyName": null,
+        "bodyName": "SUV"
+      },
+      "photos": [
+        {
+          "code": "002",
+          "path": "/carpicture03/pic4123/41232209_002.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "006",
+          "path": "/carpicture03/pic4123/41232209_006.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "019",
+          "path": "/carpicture03/pic4123/41232209_019.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "004",
+          "path": "/carpicture03/pic4123/41232209_004.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "016",
+          "path": "/carpicture03/pic4123/41232209_016.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "008",
+          "path": "/carpicture03/pic4123/41232209_008.jpg",
+          "type": "INNER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "001",
+          "path": "/carpicture03/pic4123/41232209_001.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "021",
+          "path": "/carpicture03/pic4123/41232209_021.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "007",
+          "path": "/carpicture03/pic4123/41232209_007.jpg",
+          "type": "INNER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "017",
+          "path": "/carpicture03/pic4123/41232209_017.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "009",
+          "path": "/carpicture03/pic4123/41232209_009.jpg",
+          "type": "INNER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "022",
+          "path": "/carpicture03/pic4123/41232209_022.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "018",
+          "path": "/carpicture03/pic4123/41232209_018.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "024",
+          "path": "/carpicture03/pic4123/41232209_024.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "020",
+          "path": "/carpicture03/pic4123/41232209_020.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "010",
+          "path": "/carpicture03/pic4123/41232209_010.jpg",
+          "type": "INNER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "015",
+          "path": "/carpicture03/pic4123/41232209_015.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "003",
+          "path": "/carpicture03/pic4123/41232209_003.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "005",
+          "path": "/carpicture03/pic4123/41232209_005.jpg",
+          "type": "OUTER",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        },
+        {
+          "code": "023",
+          "path": "/carpicture03/pic4123/41232209_023.jpg",
+          "type": "OPTION",
+          "updateDateTime": "2025-12-26T16:16:04",
+          "desc": null
+        }
+      ],
+      "options": {
+        "type": "CAR",
+        "standard": [
+          "001",
+          "002",
+          "004",
+          "005",
+          "006",
+          "007",
+          "008",
+          "010",
+          "014",
+          "015",
+          "017",
+          "019",
+          "020",
+          "021",
+          "022",
+          "023",
+          "024",
+          "026",
+          "027",
+          "030",
+          "031",
+          "032",
+          "033",
+          "034",
+          "035",
+          "051",
+          "055",
+          "056",
+          "057",
+          "058",
+          "059",
+          "062",
+          "063",
+          "072",
+          "074",
+          "075",
+          "077",
+          "078",
+          "079",
+          "080",
+          "081",
+          "082",
+          "083",
+          "084",
+          "085",
+          "086",
+          "087",
+          "088",
+          "094",
+          "095",
+          "096",
+          "097"
+        ],
+        "etc": [],
+        "choice": [],
+        "tuning": []
+      },
+      "condition": {
+        "accident": {
+          "recordView": true,
+          "resumeView": true
+        },
+        "inspection": {
+          "formats": [
+            "TABLE"
+          ]
+        },
+        "seizing": {
+          "seizingCount": 0,
+          "pledgeCount": 0
+        }
+      },
+      "partnership": {
+        "brand": null,
+        "testdrive": {
+          "active": false
+        },
+        "dealer": {
+          "userId": "oracle0224",
+          "name": "지명진",
+          "firm": {
+            "code": "4145",
+            "name": "G카",
+            "diag2Partnered": false,
+            "diagnosisCenters": [
+              {
+                "code": "152",
+                "name": "엔카진단센터 남부산점",
+                "major": true,
+                "telephoneNumber": "051-636-8973",
+                "address": "부산 남구 신선로 172 남부산자동차매매단지"
+              }
+            ],
+            "meetgoCenters": []
+          },
+          "visitReservation": false
+        },
+        "isPartneredVehicle": true,
+        "certifiedBrand": null,
+        "lease": null,
+        "rent": null
+      },
+      "contents": null,
+      "view": {
+        "encarDiagnosis": 1,
+        "encarMeetGo": 0,
+        "hasEvBatteryInfo": false,
+        "isBatteryPass": false,
+        "photoPlus": 1,
+        "meetgoExpertAvailable": false,
+        "isSingleAd": false
+      },
+      "vehicleId": 41232209,
+      "vehicleType": "CAR",
+      "vin": "W1NFB0KB1PA964493",
+      "vehicleNo": "239가2484",
+      "queryCarId": 41237726,
+      "requestUrl": "/v1/readside/vehicle/41237726?include=ADVERTISEMENT,CATEGORY,CONDITION,CONTACT,MANAGE,OPTIONS,PHOTOS,SPEC,PARTNERSHIP,CENTER,VIEW"
+    },
+    "explain": {},
+    "sellingpoint": {},
+    "photo": [],
+    "diagnosis": {
+      "items": []
+    },
+    "inspect": {},
+    "inspectSummary": {},
+    "option": {},
+    "optionStandard": {},
+    "optionStandardTruck": {},
+    "optionChoice": [],
+    "optionTuning": [],
+    "accident": {},
+    "warranty": {},
+    "leaseSuccession": [],
+    "rent": {},
+    "rentSuccession": [],
+    "profile": {},
+    "mochaFaq": {},
+    "mochaRequest": {},
+    "usersFavorites": [],
+    "loggedAuth": {},
+    "falseCar": {},
+    "items": [],
+    "acquisitionCost": {},
+    "address": [],
+    "estimate": {},
+    "encarpayLimitCheck": null,
+    "escrow": {
+      "existence": null
+    },
+    "encarpayAcitvatedFinancial": [
+      {
+        "inflowType": "",
+        "financialCompany": ""
+      }
+    ],
+    "inquiryOpen": false,
+    "newCarPriceAccessKey": {
+      "pageAccessToken": "AgV4PlQuAEPM208WNPV9KuSPJEnBOKD3hKSftPqYyTiMZUAAcQACAAdFbmNhckNrAAdFbmNhckN2ABVhd3MtY3J5cHRvLXB1YmxpYy1rZXkAREEyL0JsNFZVZTRJMkRnT29RaHR6aGtUYk40czF2cXdhWE9MRFZFVEo1RVFEQTRzUkowdkZnUjBMQVZMTXlvODRsQT09AAEAB2F3cy1rbXMAUGFybjphd3M6a21zOmFwLW5vcnRoZWFzdC0yOjI3MjM2MjQ4NzY1MzprZXkvbXJrLWRmZWEyNmY3NTVhMzQ3MjliNjkwMjRkZWZmM2M1MWFjALgBAgEAeAuqQuSJvQ+Ra4FSj55FZzS0sk+00amsb3yoAFiEYn4PAbvrjWzivJ/YKkcclXPatFMAAAB+MHwGCSqGSIb3DQEHBqBvMG0CAQAwaAYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAy3davXoojOb5vCR7kCARCAO6E0A485UwROfVMGMDLhP8thVUHSR9HXSGVGoLmOzONQDweqsTNkLCGBFVer2taGHwf2uduh472M6PwfAgAAEAD6uY668YolhuHcHik2dWncBzvXuvp5GiibsSAIaGZJP1VIuFv7WVlKCtv0sLuwDYP/////AAAAAQAAAAAAAAAAAAAAAQAAAJ5kg4btqR7TY8p/vXm1Ca7fIWZHurKLVuQifgRWSYMv10Uv3pIkzvDYK4CUeEN+4pFxcswgYNSamdNO5EsGH8u+bMySfEyq9PLbGwurSViA66QR6wJZa/0KXe98OzKjjPBhfE7rIYCOL4GTXcL85apeJiQKLf/0sbICh5Q2NyeOu4AFu2wIwSnSUQjzwX7KCDo4/c1nt90GMW+Qixd+1uwoJ1wIAK2NR/0xfIQVAQQAZzBlAjEAx2m8f0WoCteXhvuddHRldVqWs2ilar+7BeAozeb0TtcltrptmZn6vr/9uCzJJCUJAjBuN6Fgx8cUPRIXVSjz/r6m+XYPsCHOCUYp5/qOmddnkNsJGrW6HPTtq3k6EV0Phkc="
+    },
+    "partnerCenter": null,
+    "affiliationCompany": null,
+    "userSelectRentValue": {
+      "amount": "",
+      "month": "",
+      "contractType": ""
+    },
+    "detailServerDriven": {
+      "version": null,
+      "success": false,
+      "message": "This transaction has been restricted by traffic limits.",
+      "result": null,
+      "serverDrivenVehicleId": 41237726
+    },
+    "detailServerDrivenFlags": {
+      "successType": "failed",
+      "isServerDrivenValid": false,
+      "sduiVersion": null
+    },
+    "evBattery": {}
+  },
+  "encarcenter": {
+    "locationList": [],
+    "centerList": [],
+    "centerDetail": {},
+    "sendInfo": null,
+    "validation": {
+      "sendName": "",
+      "sendEmail": "",
+      "receiveName": "",
+      "receiveEmail": "",
+      "checked": false,
+      "sendNameValidationText": "",
+      "sendEmailValidationText": "",
+      "receiveNameValidationText": "",
+      "receiveEmailValidationText": ""
+    },
+    "totalCount": 0
+  },
+  "hsContracts": {
+    "photoBlobs": {
+      "evidencePhoto1": "",
+      "evidencePhoto2": "",
+      "evidencePhoto3": "",
+      "evidencePhoto4": "",
+      "evidencePhoto5": ""
+    },
+    "confirmStatus": "",
+    "attachments": []
+  },
+  "estimatePictureUpload": {
+    "isInit": false,
+    "isComplete": false,
+    "estimateInfo": {}
+  },
+  "auction": {
+    "auctionList": [],
+    "auctionDetail": {},
+    "proAuctionList": [],
+    "proAuctionDetail": {},
+    "sellerEstimateDetail": {},
+    "bidList": [],
+    "bidDetail": {}
+  },
+  "buyInquiry": {
+    "textInquiry": "",
+    "phoneNumber": "",
+    "inquiryItems": [],
+    "isExchange": "exchangeNo",
+    "selectCategory": "",
+    "termsAgreement": {
+      "personal": false,
+      "thirdPartyConsent": false,
+      "thirdPartyConsentOption": false
+    }
+  },
+  "carInfoSelect": {
+    "carType": "DOMESTIC",
+    "manufacturerCd": "",
+    "manufacturerItems": [],
+    "modelGroupCd": "",
+    "modelGroupItems": [],
+    "modelCd": "",
+    "modelItems": [],
+    "formCd": "",
+    "formItems": [],
+    "formDetailCd": "",
+    "formDetailItems": [],
+    "capacityCd": "",
+    "capacityItems": [],
+    "yearsCd": "",
+    "milage": ""
+  },
+  "board": {
+    "noticeList": {
+      "isInit": false,
+      "isNone": false,
+      "listData": [],
+      "totalCount": 0
+    },
+    "noticeView": {
+      "isInit": false,
+      "viewData": {}
+    }
+  },
+  "ohMyCall": {
+    "prologueInfo": {},
+    "customerPhone": {},
+    "currentAcquisition": {
+      "inspectionInsuranceCost": 0,
+      "regionSellingCost": 0,
+      "registrarCost": 0,
+      "etcCost": 0,
+      "purpose": "비영업용",
+      "welfare": ""
+    },
+    "nameCard": {},
+    "documentInfo": {},
+    "previewAcquisition": {}
+  },
+  "escrow": {
+    "car": {
+      "base": {},
+      "photos": [],
+      "warrantyInfo": {
+        "hasWarranty": false,
+        "warrantyList": []
+      },
+      "estimateInfo": {
+        "carPrice": null,
+        "transferCost": null,
+        "sellingCost": null,
+        "userFee": null,
+        "extendedWarrantyCost": null
+      }
+    },
+    "application": {
+      "ui": {
+        "isApplicationFormInit": false,
+        "isLoading": false,
+        "isJointNominees": false,
+        "isSameAccount": false,
+        "isSameApplicant": false,
+        "isSameBusinessEmail": false,
+        "isSameBusinessAddressAsPostalAddress": false,
+        "isSameCertifiedAddressAsPostalAddress": false,
+        "isSamePostalAddressAsBusinessAddress": false,
+        "homeserviceTerms": {
+          "personalInfo": false,
+          "personalOptionInfo": false,
+          "personalOffer": false,
+          "personalProcess": false,
+          "sevenDaysRefund": false
+        },
+        "warrantyTerms": {
+          "personalInfo": false,
+          "personalProvision": false,
+          "useAndRefund": false
+        },
+        "stepList": [
+          "차량정보확인",
+          "결제방법 선택",
+          "신청주문서"
+        ]
+      },
+      "applicationInfo": {
+        "userId": "",
+        "name": "",
+        "phone": "",
+        "email": "",
+        "refundAccount": {
+          "bank": "없음",
+          "name": "",
+          "number": ""
+        },
+        "extendedWarrantyMonth": null,
+        "certificationKey": "",
+        "paymentMethods": null,
+        "applicantType": "PERSONAL",
+        "applicationMethod": "MOBILE",
+        "consultationTimeType": "A_EARLY_MORNING",
+        "nominees": [
+          {
+            "name": "",
+            "applicantType": "PERSONAL",
+            "nomineeType": "MAIN_APPLICANT_NOMINEE",
+            "phone": "",
+            "email": "",
+            "birth": "",
+            "gender": "",
+            "invoice": {
+              "email": ""
+            },
+            "ownershipRate": 100,
+            "postalAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            },
+            "certifiedAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            },
+            "businessName": "",
+            "businessNumber": "",
+            "businessAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            }
+          },
+          {
+            "name": "",
+            "applicantType": "",
+            "nomineeType": "SUB_APPLICANT_NOMINEE",
+            "phone": "",
+            "ownershipRate": 0,
+            "certifiedAddress": {
+              "buildingCd": "",
+              "detail": "",
+              "zipCd": "",
+              "addressDetail": ""
+            }
+          }
+        ]
+      },
+      "certificationInfo": {
+        "key": "",
+        "phone": "",
+        "certificationNumber": "",
+        "isCertified": false
+      },
+      "completionInfo": {},
+      "validation": {
+        "name": {
+          "isError": false,
+          "errorText": ""
+        },
+        "phone": {
+          "isError": false,
+          "errorText": ""
+        },
+        "email": {
+          "isError": false,
+          "errorText": ""
+        },
+        "certificationNumber": {
+          "isError": false,
+          "errorText": ""
+        },
+        "refundAccount": {
+          "bank": {
+            "isError": false,
+            "errorText": ""
+          },
+          "name": {
+            "isError": false,
+            "errorText": ""
+          },
+          "number": {
+            "isError": false,
+            "errorText": ""
+          }
+        },
+        "nominees": [
+          {
+            "name": {
+              "isError": false,
+              "errorText": ""
+            },
+            "birth": {
+              "isError": false,
+              "errorText": ""
+            },
+            "phone": {
+              "isError": false,
+              "errorText": ""
+            },
+            "email": {
+              "isError": false,
+              "errorText": ""
+            },
+            "postalAddress": {
+              "isError": false,
+              "errorText": ""
+            },
+            "certifiedAddress": {
+              "isError": false,
+              "errorText": ""
+            },
+            "businessAddress": {
+              "isError": false,
+              "errorText": ""
+            },
+            "invoice": {
+              "email": {
+                "isError": false,
+                "errorText": ""
+              }
+            },
+            "ownershipRate": {
+              "isError": false,
+              "errorText": ""
+            },
+            "businessName": {
+              "isError": false,
+              "errorText": ""
+            },
+            "businessNumber": {
+              "isError": false,
+              "errorText": ""
+            }
+          },
+          {
+            "name": {
+              "isError": false,
+              "errorText": ""
+            },
+            "phone": {
+              "isError": false,
+              "errorText": ""
+            },
+            "ownershipRate": {
+              "isError": false,
+              "errorText": ""
+            },
+            "certifiedAddress": {
+              "isError": false,
+              "errorText": ""
+            }
+          }
+        ]
+      }
+    },
+    "contracts": {
+      "photoBlobs": {
+        "evidencePhoto1": "",
+        "evidencePhoto2": "",
+        "evidencePhoto3": "",
+        "evidencePhoto4": "",
+        "evidencePhoto5": ""
+      },
+      "confirmStatus": "",
+      "attachments": []
+    },
+    "cashPay": {
+      "encryptApplicationId": "",
+      "applicationInfo": null
+    }
+  },
+  "carVerification": {
+    "basic": {
+      "values": []
+    },
+    "interior": {
+      "values": []
+    },
+    "state": {
+      "values": []
+    },
+    "exterior": {
+      "values": []
+    },
+    "etc": {
+      "values": []
+    },
+    "diagnosis": {
+      "values": []
+    },
+    "car": null,
+    "carId": null,
+    "carPhotoObject": {
+      "photos": []
+    },
+    "verifier": null,
+    "carVerificationOption": {
+      "basic": [],
+      "state": [],
+      "exterior": [],
+      "interior": [],
+      "etc": [],
+      "diagnosis": []
+    },
+    "record": null,
+    "registration": null,
+    "verification": null,
+    "diagnosisUserInfo": null,
+    "diagnosisRegStatus": null,
+    "reportData": {},
+    "isSampleReport": false,
+    "reportFullData": {},
+    "optionStandard": {},
+    "optionDetail": {},
+    "simpleReport": null,
+    "negativeSimpleReport": null,
+    "possibleMeetgoDelivery": false,
+    "possibleMeetgoVisit": false,
+    "isDisableReport": false
+  },
+  "escrowV2": {
+    "form": {
+      "isSameNominee": false,
+      "nomineeValueType": "PERSONAL",
+      "nomineeInfo": {
+        "개인": {
+          "ownershipRate": 100,
+          "name": "",
+          "phone": "",
+          "email": "",
+          "addressInfo": null
+        },
+        "대표": {
+          "ownershipRate": 50,
+          "name": "",
+          "phone": "",
+          "email": "",
+          "addressInfo": null
+        },
+        "공동": {
+          "ownershipRate": 50,
+          "name": "",
+          "phone": "",
+          "addressInfo": null
+        },
+        "법인": {
+          "ownershipRate": 100,
+          "name": "",
+          "phone": "",
+          "addressInfo": null
+        }
+      },
+      "postalAddressInfo": {
+        "buildingCd": "",
+        "postCd": "",
+        "address": ""
+      },
+      "businessInfo": {
+        "businessName": "",
+        "businessNumber": "",
+        "invoiceEmail": "",
+        "addressInfo": {
+          "buildingCd": "",
+          "postCd": "",
+          "address": ""
+        }
+      },
+      "corporationInfo": {
+        "corporateName": "",
+        "businessNumber": "",
+        "invoiceEmail": ""
+      },
+      "refundAccountInfo": {
+        "bank": "없음",
+        "name": "",
+        "number": ""
+      },
+      "customerInfo": {
+        "name": "",
+        "phone": "",
+        "userId": ""
+      },
+      "redirectURL": "",
+      "backURL": ""
+    },
+    "options": {
+      "carId": null,
+      "carAdvertisingPrice": 0,
+      "estimateInfo": null,
+      "hasWarranty": null,
+      "warrantyList": null,
+      "selectedPayment": null,
+      "selectedWarranty": null,
+      "redirectURL": "",
+      "backURL": "",
+      "applicationUuid": "",
+      "encarpayInfo": null
+    },
+    "requestApi": {
+      "api": {
+        "url": "",
+        "headers": null
+      },
+      "body": null
+    }
+  },
+  "meetgo": {
+    "reservation": {
+      "detailInfo": {
+        "salesAgentStatusType": "",
+        "salesAgentStatusName": "",
+        "vehiclePhotoPath": "",
+        "manufacturerName": "",
+        "modelGroupName": "",
+        "modelName": "",
+        "gradeName": "",
+        "gradeDetailName": "",
+        "modelYearMonth": "",
+        "distanceDriven": "",
+        "vehicleAdvertisingAmount": "",
+        "customerName": "",
+        "customerMobilePhoneNumber": "",
+        "useDate": "",
+        "useStartTime": "",
+        "useEndTime": "",
+        "centerName": "",
+        "centerAddress": "",
+        "centerPhoneNumber": "",
+        "salesAgentReservationId": "",
+        "salesAgentAdjustmentStatusType": "",
+        "salesAgentAdjustmentStatusName": "",
+        "salesAgentVehicleStatusType": "",
+        "salesAgentVehicleStatusName": "",
+        "reservationRequestDatetime": "",
+        "vehicleId": "",
+        "serviceAdvertisementId": "",
+        "vehicleNo": "",
+        "modelYear": "",
+        "mileage": 0,
+        "advertisementPrice": 0,
+        "finalPrice": "",
+        "customerUserId": "",
+        "managerEmployeeId": "",
+        "adjustmentRequestAmount": "",
+        "adjustmentRequestContents": "",
+        "dealerId": "",
+        "dealerName": "",
+        "dealerMobilePhoneNumber": "",
+        "statusHistoryList": [
+          {
+            "salesAgentStatusHistoryId": 0,
+            "salesAgentStatusType": "",
+            "salesAgentStatusChangeType": null,
+            "salesAgentStatusChangeContents": null,
+            "statusChangeDatetime": "",
+            "statusChangeUserId": null
+          }
+        ]
+      },
+      "dateSlotList": [],
+      "selectedDate": "",
+      "selectedTime": "",
+      "selectedEndTime": "",
+      "verifiedPhone": "",
+      "reservationList": {
+        "isNone": false,
+        "listData": [],
+        "totalCount": 0
+      },
+      "simple": {
+        "existence": false
+      },
+      "isDetailInfoExist": false
+    },
+    "application": {
+      "uuid": "",
+      "applicant": {
+        "userId": "",
+        "name": "",
+        "phone": "",
+        "refundAccount": {
+          "name": "",
+          "bank": "",
+          "number": ""
+        },
+        "nominees": [
+          {
+            "id": 1,
+            "applicantType": "",
+            "nomineeType": "",
+            "name": "",
+            "phone": "",
+            "birth": "",
+            "gender": "",
+            "certifiedAddress": {
+              "buildingCd": "",
+              "detail": ""
+            },
+            "postalAddress": {
+              "buildingCd": "",
+              "detail": ""
+            },
+            "businessName": "",
+            "businessNumber": "",
+            "businessAddress": {
+              "buildingCd": "",
+              "detail": ""
+            },
+            "ownershipRate": 1,
+            "invoice": {
+              "type": "",
+              "issueRequest": true,
+              "email": ""
+            }
+          }
+        ]
+      },
+      "car": {
+        "carId": "",
+        "modelName": "",
+        "plate": ""
+      },
+      "seller": {
+        "id": "",
+        "name": "",
+        "phone": ""
+      },
+      "company": {
+        "code": "",
+        "name": "",
+        "dealershipCode": "",
+        "dealershipName": ""
+      },
+      "lastProgress": "",
+      "consultant": {
+        "id": "",
+        "name": "",
+        "phone": ""
+      },
+      "estimate": {
+        "carPrice": 1,
+        "transferCost": 96,
+        "sellingCost": 330000,
+        "inspectionInsuranceFee": 0,
+        "userFee": 110000,
+        "extendedWarrantyCost": 0
+      },
+      "extendedWarranty": {
+        "month": 0,
+        "cost": 0,
+        "type": "A"
+      },
+      "payment": {
+        "uplus": {},
+        "paymentV2": {},
+        "firstPaymentMethod": "",
+        "activePaymentMethods": ""
+      },
+      "refund": {
+        "id": 4,
+        "refundReason": "",
+        "pictures": [],
+        "createdAt": 1672731309351
+      },
+      "progresses": [
+        {
+          "id": 6,
+          "type": "",
+          "createdAt": 1672648723386
+        }
+      ],
+      "reservationId": "",
+      "visitCenterName": "",
+      "reservationVisitAt": 0,
+      "reservationAt": 0,
+      "createdAt": 0
+    }
+  },
+  "contracts": {
+    "photoBlobs": {
+      "evidencePhoto1": "",
+      "evidencePhoto2": "",
+      "evidencePhoto3": "",
+      "evidencePhoto4": "",
+      "evidencePhoto5": ""
+    },
+    "confirmStatus": "",
+    "attachments": []
+  },
+  "orders": {
+    "order": null,
+    "orderTransaction": null
+  },
+  "preDelivery": {
+    "guide": {
+      "isInit": false,
+      "recentlyViewedCarList": []
+    }
+  },
+  "join": {
+    "sns": {
+      "isInit": false,
+      "hasBeforeSocialAgreement": false,
+      "duplicateList": []
+    }
+  }
+}
