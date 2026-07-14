@@ -3,145 +3,25 @@ import json
 from openai import OpenAI
 
 from .config import OPENAI_API_KEY, OPENAI_MODEL, STATIC_FOOTER
+from .legacy_post_generation import (
+    apply_legacy_fallbacks_and_filters,
+    build_legacy_openai_prompt,
+    build_legacy_post_body,
+)
 from .pricing import format_eur, format_km
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-def apply_fallbacks_and_filters(data):
-    title = (data.get("title") or "").strip()
-    fuel = (data.get("fuel") or "").strip()
-    transmission = (data.get("transmission") or "").strip()
-    short_accent = (data.get("short_accent") or "").strip()
-    highlights = data.get("strong_highlights") or []
-
-    if not transmission:
-        transmission = "Автоматик"
-
-    if fuel.lower() in ["가솔린", "gasoline"]:
-        fuel = "Бензин"
-
-    if not fuel:
-        fuel = "Бензин"
-
-    weak_words = [
-        "led фарове", "обикновени led", "парктроник", "сензори за паркиране",
-        "камера за заден ход", "задна камера", "климатик", "автоматичен климатик",
-        "смарт ключ", "abs", "esp", "airbag", "airbags", "ел. стъкла",
-        "електрически стъкла", "навигация"
-    ]
-
-    filtered = []
-    for item in highlights:
-        if not isinstance(item, str):
-            continue
-
-        item_clean = item.strip()
-        item_lower = item_clean.lower()
-
-        if any(weak in item_lower for weak in weak_words):
-            continue
-
-        if item_clean and item_clean not in filtered:
-            filtered.append(item_clean)
-
-    data["title"] = title
-    data["fuel"] = fuel.capitalize()
-    data["transmission"] = transmission
-    data["short_accent"] = short_accent
-    data["strong_highlights"] = filtered[:8]
-
-    return data
+def apply_fallbacks_and_filters(data, car_context):
+    del car_context
+    return apply_legacy_fallbacks_and_filters(data)
 
 
 def generate_facebook_data_with_openai(car_context):
     final_price = format_eur(car_context["final_price_eur"])
     mileage = format_km(car_context["mileage"])
-
-    prompt = f"""
-От текста на Encar обява извлечи данни и създай Facebook пост за внос на автомобил.
-
-Върни САМО валиден JSON. Без markdown. Без обяснения.
-
-JSON формат:
-{{
-  "title": "",
-  "fuel": "",
-  "transmission": "",
-  "short_accent": "",
-  "strong_highlights": []
-}}
-
-ЗАДЪЛЖИТЕЛНИ ДАННИ:
-Крайна цена: {final_price} €
-Година: {car_context['year']}
-Пробег: {mileage} KM
-
-ФОРМАТ НА facebook_post:
-💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {final_price} € 💥
-🚙 [title] 🚙
-━━━━━━━━━━━━━━━━━━━
-⚜️ {car_context['year']} • 🖤 {mileage} KM
-⛽ [fuel] | ⚙️ [transmission]
-━━━━━━━━━━━━━━━━━━━
-💎 [short_accent]
-━━━━━━━━━━━━━━━━━━━
-✅ характеристика
-✅ характеристика
-✅ характеристика
-✅ характеристика
-✅ характеристика
-✅ характеристика
-━━━━━━━━━━━━━━━━━━━
-
-ПРАВИЛА:
-- Пиши на български.
-- Не добавяй линкове.
-- Не добавяй телефони.
-- Не добавяй VIN.
-- Не добавяй доставка.
-- Не добавяй лизинг.
-- Не добавяй финални рекламни изречения.
-- Не измисляй екстри.
-- Ако не си сигурен за екстрата, не я включвай.
-- transmission ако не е ясно, остави празно.
-- title трябва да е пълно и продаваемо име, например Mercedes-AMG GLE53 4MATIC+ Coupe.
-- short_accent да е 3 кратки акцента, разделени с |.
-- strong_highlights да са 6 до 8 силни характеристики.
-- facebook_post да използва най-силните 6 highlights.
-
-НЕ включвай като highlights:
-- климатик
-- автоматичен климатик
-- парктроник
-- сензори за паркиране
-- ел. стъкла
-- смарт ключ
-- ABS
-- ESP
-- airbags
-- обикновена навигация
-- обикновени LED фарове
-- камера за заден ход, ако има по-силни характеристики
-
-НЕ измисляй:
-- premium audio
-- Burmester
-- Bang & Olufsen
-- Harman Kardon
-- Bose
-- адаптивен круиз
-- масажни седалки
-- 360 камера
-- head-up display
-- Multibeam
-ако тези думи не присъстват ясно в текста.
-
-Ако моделът е AMG/M/RS, можеш да го използваш като характеристика, но не го наричай “спортен пакет”, освен ако не пише пакет.
-
-ТЕКСТ ОТ ОБЯВАТА:
-{car_context['raw_car_text']}
-"""
+    prompt = build_legacy_openai_prompt(car_context, final_price=final_price, mileage=mileage)
 
     response = client.responses.create(
         model=OPENAI_MODEL,
@@ -153,57 +33,18 @@ JSON формат:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        raise ValueError(f"OpenAI не върна валиден JSON: {raw}")
+        raise ValueError(f"OpenAI не върна валиден JSON:\n{raw}")
 
-    return apply_fallbacks_and_filters(data)
+    return apply_fallbacks_and_filters(data, car_context)
 
 
 def build_facebook_post(car_context, data):
-    facebook_post = data.get("facebook_post")
-    if facebook_post:
-        return facebook_post.strip() + "\n" + STATIC_FOOTER
-
     final_price = format_eur(car_context["final_price_eur"])
     mileage = format_km(car_context["mileage"])
+    post_body = build_legacy_post_body(car_context, data, final_price=final_price, mileage=mileage)
 
-    title = data.get("title") or "Автомобил от Южна Корея"
-    fuel = data.get("fuel") or "Бензин"
-    transmission = data.get("transmission") or "Автоматик"
-    short_accent = data.get("short_accent") or title
+    final_post = post_body.rstrip()
+    while final_post.endswith("━━━━━━━━━━━━━━━━━━━"):
+        final_post = final_post[:-19].rstrip()
 
-    highlights = data.get("strong_highlights") or []
-
-    fallback_highlights = [
-        "Премиум изпълнение",
-        "Богато оборудване",
-        "Отлична конфигурация",
-        "Комфортен кожен салон",
-        "Проверена история",
-        "Подходящ избор за внос"
-    ]
-
-    final_highlights = []
-    for item in highlights + fallback_highlights:
-        if item not in final_highlights:
-            final_highlights.append(item)
-        if len(final_highlights) == 6:
-            break
-
-    lines = [
-        f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {final_price} € 💥",
-        f"🚙 {title} 🚙",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"⚜️ {car_context['year']} • 🖤 {mileage} KM",
-        f"⛽ {fuel} | ⚙️ {transmission}",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"💎 {short_accent}",
-        "━━━━━━━━━━━━━━━━━━━",
-    ]
-
-    for item in final_highlights:
-        lines.append(f"✅ {item}")
-
-    final_post = "\n".join(lines)
-    final_post = final_post + "\n" + STATIC_FOOTER
-
-    return final_post
+    return final_post + "\n" + STATIC_FOOTER

@@ -4,7 +4,14 @@ from .cleanup import cleanup_old_jobs
 from .config import GENERATED_DIR
 from .image_service import create_zip, download_images
 from .openai_service import build_facebook_post, generate_facebook_data_with_openai
-from .pricing import calculate_final_price_eur, format_eur, format_km, krw_to_eur
+from .pricing import (
+    FRANKFURTER_SOURCE,
+    calculate_final_price_eur,
+    format_eur,
+    format_km,
+    get_eur_to_krw_rate_info,
+    krw_to_eur_with_rate,
+)
 from .scraper import (
     download_html,
     extract_clean_car_text,
@@ -21,12 +28,14 @@ def process_encar(url: str):
     job_dir.mkdir(parents=True, exist_ok=True)
 
     html = download_html(url)
+    (job_dir / "detail_page.html").write_text(html, encoding="utf-8")
 
     price_krw = extract_price_krw(html)
     car_year = extract_year(html)
     mileage = extract_mileage(html)
 
-    base_price_eur = krw_to_eur(price_krw)
+    krw_per_eur, exchange_rate_date = get_eur_to_krw_rate_info()
+    base_price_eur = krw_to_eur_with_rate(price_krw, krw_per_eur)
     final_price_eur, extra_cost = calculate_final_price_eur(base_price_eur, car_year)
 
     clean_car_text = extract_clean_car_text(html)
@@ -42,7 +51,15 @@ def process_encar(url: str):
         "formatted_base_price_eur": format_eur(round(base_price_eur)),
         "formatted_final_price_eur": format_eur(final_price_eur),
         "formatted_mileage": format_km(mileage),
-        "raw_car_text": clean_car_text
+        "raw_car_text": clean_car_text,
+    }
+
+    exchange_rate = {
+        "source": FRANKFURTER_SOURCE,
+        "date": exchange_rate_date,
+        "base_currency": "EUR",
+        "quote_currency": "KRW",
+        "krw_per_eur": krw_per_eur,
     }
 
     vehicle_data = generate_facebook_data_with_openai(car_context)
@@ -64,6 +81,7 @@ def process_encar(url: str):
     return {
         "job_id": job_id,
         "price_summary": price_summary,
+        "exchange_rate": exchange_rate,
         "facebook_post": facebook_post,
         "zip_url": f"/download/{job_id}",
         "photos_url": f"/photos/{job_id}",
@@ -78,7 +96,8 @@ def process_price_summary(url: str):
     car_year = extract_year(html)
     mileage = extract_mileage(html)
 
-    base_price_eur = krw_to_eur(price_krw)
+    krw_per_eur, exchange_rate_date = get_eur_to_krw_rate_info()
+    base_price_eur = krw_to_eur_with_rate(price_krw, krw_per_eur)
     final_price_eur, extra_cost = calculate_final_price_eur(base_price_eur, car_year)
 
     price_summary = f"""Година: {car_year}
@@ -89,5 +108,12 @@ def process_price_summary(url: str):
 Крайна цена до България: {format_eur(final_price_eur)} €""".replace(",", " ")
 
     return {
-        "price_summary": price_summary
+        "price_summary": price_summary,
+        "exchange_rate": {
+            "source": FRANKFURTER_SOURCE,
+            "date": exchange_rate_date,
+            "base_currency": "EUR",
+            "quote_currency": "KRW",
+            "krw_per_eur": krw_per_eur,
+        },
     }
