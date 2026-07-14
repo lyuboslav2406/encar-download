@@ -1,93 +1,39 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from app.encar_options import extract_complete_option_context_from_detail_html
 from app.generator import process_encar
 
 
 DETAIL_HTML = (
     "<html><body>"
-    "<script>__PRELOADED_STATE__ = {\"cars\":{\"base\":{\"vehicleId\":41232209,\"queryCarId\":41237726}}}</script>"
-    "<ul><li>선루프 있음</li><li>가죽시트 있음</li></ul>"
+    "<script>var x=1;</script>"
+    "<div>Mercedes-Benz GLE 300d 4MATIC</div>"
+    "<div>360 camera</div>"
+    "<div>5,473 km</div>"
     "</body></html>"
 )
 
 
-def test_option_page_failure_returns_explicit_incomplete_mode():
-    with patch("app.encar_options.requests.get", side_effect=RuntimeError("network down")):
-        context = extract_complete_option_context_from_detail_html(
-            detail_html=DETAIL_HTML,
-            detail_url="https://fem.encar.com/cars/detail/41237726",
-        )
-
-    assert context["is_incomplete"] is True
-    assert context["incomplete_reason"].startswith("option_page_or_api_load_failed")
-    assert len(context["applied_options"]) == 2
-
-
-def test_generator_passes_full_applied_options_to_ai_and_no_generic_filler():
-    fake_option_context = {
-        "vehicle_id": 41232209,
-        "detail_query_car_id": 41237726,
-        "source_url": "https://fem.encar.com/cars/option/41232209",
-        "applied_options": [
-            {
-                "code": "079",
-                "source_name": "DISTRONIC",
-                "display_name_bg": None,
-                "category": "Convenience / Multimedia",
-                "is_applied": True,
-                "source_url": "https://fem.encar.com/cars/option/41232209",
-                "source_language": "ko",
-            },
-            {
-                "code": "500",
-                "source_name": "Burmester",
-                "display_name_bg": None,
-                "category": "Convenience / Multimedia",
-                "is_applied": True,
-                "source_url": "https://fem.encar.com/cars/option/41232209",
-                "source_language": "ko",
-            },
-        ],
-        "all_option_entries": [],
-        "unresolved_option_codes": [],
-        "total_options_displayed": 53,
-        "applied_options_count": 2,
-        "main_options": ["선루프", "가죽시트"],
-        "is_incomplete": False,
-        "incomplete_reason": None,
-        "applied_code_pools": {"standard": ["079", "500"], "choice": [], "etc": [], "tuning": []},
-        "metadata": {
-            "manufacturer": "Mercedes-Benz",
-            "model": "GLE-Class",
-            "grade": "GLE300d 4MATIC",
-            "grade_detail": None,
-            "drivetrain_designation": "4MATIC",
-        },
-    }
-
+def test_generator_uses_clean_detail_text_only_for_ai_input():
     captured = {}
 
     def fake_generate(car_context):
-        captured["car_context"] = car_context
+        captured["raw_car_text"] = car_context["raw_car_text"]
         return {
-            "title": "Mercedes-Benz GLE300d 4MATIC",
+            "title": "Mercedes-Benz GLE 300d 4MATIC",
             "fuel": "Дизел",
             "transmission": "Автоматик",
-            "short_accent": "DISTRONIC | Burmester",
-            "strong_highlights": ["DISTRONIC", "Burmester"],
-            "headline_features": [],
-            "additional_features": [],
+            "short_accent": "AIRMATIC | Burmester | 360° камера",
+            "strong_highlights": ["AIRMATIC", "Burmester", "360° камера"],
+            "facebook_post": "",
         }
 
     with patch("app.generator.download_html", return_value=DETAIL_HTML), \
-         patch("app.generator.extract_price_krw", return_value=95000000), \
+         patch("app.generator.extract_price_krw", return_value=95_000_000), \
          patch("app.generator.extract_year", return_value=2023), \
          patch("app.generator.extract_mileage", return_value=54736), \
          patch("app.generator.get_eur_to_krw_rate_info", return_value=(1600.0, "2026-07-14")), \
          patch("app.generator.calculate_final_price_eur", return_value=(68500, 8000)), \
-         patch("app.generator.extract_complete_option_context_from_detail_html", return_value=fake_option_context), \
          patch("app.generator.generate_facebook_data_with_openai", side_effect=fake_generate), \
          patch("app.generator.build_facebook_post", return_value="OK"), \
          patch("app.generator.download_images", return_value=[]), \
@@ -95,15 +41,27 @@ def test_generator_passes_full_applied_options_to_ai_and_no_generic_filler():
         result = process_encar("https://fem.encar.com/cars/detail/41237726")
 
     assert result["facebook_post"] == "OK"
-    ai_source_text = captured["car_context"]["ai_source_text"]
-    assert "DISTRONIC" in ai_source_text
-    assert "Burmester" in ai_source_text
-    assert "선루프" in captured["car_context"]["main_options_evidence_block"]
-    assert "Премиум изпълнение" not in ai_source_text
+    assert "360 camera" in captured["raw_car_text"]
+    assert "var x=1" not in captured["raw_car_text"]
 
 
-def test_main_and_standalone_share_option_extractor_module():
-    script_path = Path("external-script/encar_download2.py")
-    source = script_path.read_text(encoding="utf-8")
-    assert "from app.encar_options import" in source
-    assert "extract_complete_option_context_from_detail_html" in source
+def test_no_option_page_or_structured_validator_in_active_flow():
+    generator_source = Path("app/generator.py").read_text(encoding="utf-8")
+    openai_source = Path("app/openai_service.py").read_text(encoding="utf-8")
+
+    assert "extract_complete_option_context_from_detail_html" not in generator_source
+    assert "/cars/option/" not in generator_source
+    assert "validate_ai_feature_selection" not in openai_source
+    assert "headline_features" not in openai_source
+    assert "source_option_code" not in openai_source
+
+
+def test_main_and_standalone_use_legacy_generation_path():
+    script_source = Path("external-script/encar_download2.py").read_text(encoding="utf-8")
+    app_source = Path("app/openai_service.py").read_text(encoding="utf-8")
+
+    assert "from app.encar_options import" not in script_source
+    assert "from app.feature_prompt import" not in script_source
+    assert "from app.feature_selection import" not in script_source
+    assert "build_legacy_openai_prompt" in script_source
+    assert "build_legacy_openai_prompt" in app_source

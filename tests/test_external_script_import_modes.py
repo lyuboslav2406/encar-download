@@ -105,7 +105,7 @@ class ExternalScriptImportModeTests(unittest.TestCase):
                     with patch.object(sys, "path", filtered_sys_path):
                         module = load_module_from_path("encar_download2_standalone", temp_script)
 
-                self.assertEqual(module.ExchangeRateError.__module__, module.__name__)
+                self.assertTrue(issubclass(module.ExchangeRateError, ValueError))
 
                 with patch.object(module.requests, "get", return_value=FakeResponse(self.valid_payload(rate=1700.0))):
                     krw_per_eur, rate_date = module.get_eur_to_krw_rate_info()

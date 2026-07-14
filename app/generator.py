@@ -1,13 +1,7 @@
 import uuid
-import json
 
 from .cleanup import cleanup_old_jobs
 from .config import GENERATED_DIR
-from .encar_options import (
-    build_applied_option_evidence_block,
-    build_main_options_evidence_block,
-    extract_complete_option_context_from_detail_html,
-)
 from .image_service import create_zip, download_images
 from .openai_service import build_facebook_post, generate_facebook_data_with_openai
 from .pricing import (
@@ -45,55 +39,6 @@ def process_encar(url: str):
     final_price_eur, extra_cost = calculate_final_price_eur(base_price_eur, car_year)
 
     clean_car_text = extract_clean_car_text(html)
-    option_context = extract_complete_option_context_from_detail_html(html, url)
-
-    debug_artifacts = option_context.get("debug_artifacts") or {}
-    detail_preloaded_state = debug_artifacts.get("detail_preloaded_state")
-    if detail_preloaded_state is not None:
-        (job_dir / "detail_preloaded_state.json").write_text(
-            json.dumps(detail_preloaded_state, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-    option_page_html = debug_artifacts.get("option_page_html")
-    if isinstance(option_page_html, str) and option_page_html:
-        (job_dir / "option_page.html").write_text(option_page_html, encoding="utf-8")
-
-    (job_dir / "all_option_entries.json").write_text(
-        json.dumps(option_context.get("all_option_entries") or [], ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    (job_dir / "applied_options.json").write_text(
-        json.dumps(option_context.get("applied_options") or [], ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-    applied_evidence = build_applied_option_evidence_block(option_context)
-    main_options_evidence = build_main_options_evidence_block(option_context)
-
-    ai_source_text = "\n".join(
-        [
-            "ПРИЛОЖЕНИ ОПЦИИ ОТ ENCAR OPTION PAGE:",
-            applied_evidence,
-            "",
-            "КРАТЪК MAIN OPTIONS БЛОК (SECONDARY):",
-            main_options_evidence,
-            "",
-            "ДОПЪЛНИТЕЛЕН ТЕКСТ ОТ ДЕТАЙЛ СТРАНИЦАТА:",
-            clean_car_text,
-        ]
-    )
-
-    print(
-        "Encar option extraction diagnostics: "
-        f"detail_query_car_id={option_context.get('detail_query_car_id')} "
-        f"vehicle_id={option_context.get('vehicle_id')} "
-        f"total_options_displayed={option_context.get('total_options_displayed')} "
-        f"applied_options_count={option_context.get('applied_options_count')} "
-        f"unresolved_option_count={len(option_context.get('unresolved_option_codes') or [])} "
-        f"options_passed_to_ai_count={len(option_context.get('applied_options') or [])} "
-        f"incomplete={option_context.get('is_incomplete')}"
-    )
 
     car_context = {
         "url": url,
@@ -107,16 +52,6 @@ def process_encar(url: str):
         "formatted_final_price_eur": format_eur(final_price_eur),
         "formatted_mileage": format_km(mileage),
         "raw_car_text": clean_car_text,
-        "ai_source_text": ai_source_text,
-        "primary_option_evidence_block": applied_evidence,
-        "main_options_evidence_block": main_options_evidence,
-        "option_context": option_context,
-        "manufacturer": (option_context.get("metadata") or {}).get("manufacturer"),
-        "model": (option_context.get("metadata") or {}).get("model"),
-        "grade": (option_context.get("metadata") or {}).get("grade"),
-        "grade_detail": (option_context.get("metadata") or {}).get("grade_detail"),
-        "drivetrain_designation": (option_context.get("metadata") or {}).get("drivetrain_designation"),
-        "debug_dir": str(job_dir),
     }
 
     exchange_rate = {

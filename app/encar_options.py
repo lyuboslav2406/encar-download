@@ -112,9 +112,11 @@ def _extract_vehicle_metadata(vehicle_payload: dict[str, Any]) -> dict[str, Any]
     category = vehicle_payload.get("category") or {}
     return {
         "manufacturer": category.get("manufacturerEnglishName") or category.get("manufacturerName"),
+        "model_group": category.get("modelGroupName") or category.get("modelName"),
         "model": category.get("modelName"),
         "grade": category.get("gradeName"),
         "grade_detail": category.get("gradeDetailName") or category.get("gradeDetailEnglishName"),
+        "model_year": category.get("formYear"),
         "drivetrain_designation": _detect_drivetrain(category),
     }
 

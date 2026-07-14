@@ -1,12 +1,13 @@
-import os
-import re
 import json
 import math
-import sys
+import os
+import re
 import shutil
-import requests
+import sys
 from pathlib import Path
 from typing import Any
+
+import requests
 from bs4 import BeautifulSoup
 from openai import OpenAI
 
@@ -25,8 +26,6 @@ except ModuleNotFoundError as exc:
     if exc.name not in {"app", "app.pricing"}:
         raise
 
-    # This utility is intentionally distributed as a standalone local script.
-    # When the repository package is available, we use shared production pricing.
     FRANKFURTER_SOURCE = "Frankfurter"
     FRANKFURTER_EUR_KRW_URL = "https://api.frankfurter.dev/v2/rate/EUR/KRW"
     MIN_PLAUSIBLE_KRW_PER_EUR = 500
@@ -87,351 +86,206 @@ except ModuleNotFoundError as exc:
         validated_krw_per_eur = _validate_krw_per_eur(krw_per_eur)
         return float(krw_price) / validated_krw_per_eur
 
-from app.encar_options import (
-    build_applied_option_evidence_block,
-    build_main_options_evidence_block,
-    extract_complete_option_context_from_detail_html,
-)
-
 try:
-    from app.feature_selection import (
-        build_option_evidence_block,
-        build_short_accent,
-        build_short_accent_from_validated,
-        flatten_validated_features,
-        normalize_feature,
-        remove_accent_duplicates,
-        validate_ai_feature_selection,
+    from app.legacy_post_generation import (
+        apply_legacy_fallbacks_and_filters,
+        build_legacy_openai_prompt,
+        build_legacy_post_body,
     )
 except ModuleNotFoundError as exc:
-    if exc.name not in {"app", "app.feature_selection"}:
+    if exc.name not in {"app", "app.legacy_post_generation"}:
         raise
 
-    FORBIDDEN_GENERIC_FEATURE_PHRASES = (
-        "премиум изпълнение",
-        "богато оборудване",
-        "отлична конфигурация",
-        "отлично оборудване",
-        "луксозно изпълнение",
-        "комфортен интериор",
-        "подходящ избор за внос",
-        "премиум автомобил",
-        "високо ниво на комфорт",
-        "богата конфигурация",
-        "комфортен кожен салон",
-    )
+    def build_legacy_openai_prompt(car_context: dict[str, Any], final_price: str, mileage: str) -> str:
+        schema = json.dumps(
+            {
+                "title": "",
+                "fuel": "",
+                "transmission": "",
+                "short_accent": "",
+                "strong_highlights": [],
+                "facebook_post": "",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        return f"""
+От текста на Encar обява извлечи данни и създай Facebook пост за внос на автомобил.
 
-    FORBIDDEN_NON_EQUIPMENT_TERMS = (
-        "encar warranty",
-        "korean warranty",
-        "manufacturer warranty",
-        "remaining warranty",
-        "extended warranty",
-        "warranty",
-        "гаранц",
-        "безавари",
-        "accident",
-        "import",
-        "внос",
-    )
+Върни САМО валиден JSON. Без markdown. Без обяснения.
 
-    UI_NOISE_TERMS = (
-        "기본정보",
-        "옵션정보",
-        "차량상태",
-        "보증현황",
-        "엔카서비스",
-        "신고하기",
-        "프린트",
-        "공유하기",
-        "찜하기",
-        "가격",
-        "고객센터",
-        "이용약관",
-    )
+JSON формат:
+{schema}
 
-    BASELINE_TERMS = (
-        "leather",
-        "кож",
-        "heated front",
-        "подгрев",
-        "automatic transmission",
-        "автоматик",
-        "climate",
-        "климат",
-    )
+ЗАДЪЛЖИТЕЛНИ ДАННИ:
+Крайна цена: {final_price} €
+Година: {car_context["year"]}
+Пробег: {mileage} KM
 
-    STOPWORDS = {
-        "the",
-        "and",
-        "for",
-        "with",
-        "from",
-        "that",
-        "this",
-        "или",
-        "както",
-        "при",
-        "за",
-        "с",
-        "на",
-        "от",
-    }
+ФОРМАТ НА facebook_post:
+💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {final_price} € 💥
+🚙 [title] 🚙
+━━━━━━━━━━━━━━━━━━━
+⚜️ {car_context["year"]} • 🖤 {mileage} KM
+⛽ [fuel] | ⚙️ [transmission]
+━━━━━━━━━━━━━━━━━━━
+💎 [short_accent]
+━━━━━━━━━━━━━━━━━━━
+✅ характеристика
+✅ характеристика
+✅ характеристика
+✅ характеристика
+✅ характеристика
+✅ характеристика
+━━━━━━━━━━━━━━━━━━━
 
-    def _clean_text(value: str) -> str:
-        return re.sub(r"\s+", " ", value or "").strip()
+ПРАВИЛА:
+- Пиши на български.
+- Не добавяй линкове.
+- Не добавяй телефони.
+- Не добавяй VIN.
+- Не добавяй доставка.
+- Не добавяй лизинг.
+- Не добавяй финални рекламни изречения.
+- Не измисляй екстри.
+- Ако не си сигурен за екстрата, не я включвай.
+- transmission ако не е ясно, остави празно.
+- title трябва да е пълно и продаваемо име, например Mercedes-AMG GLE53 4MATIC+ Coupe.
+- short_accent да е 3 кратки акцента, разделени с |.
+- strong_highlights да са 6 до 8 силни характеристики.
+- facebook_post да използва най-силните 6 highlights.
 
-    def _normalized_text(value: str) -> str:
-        return _clean_text(value).lower()
+НЕ включвай като highlights:
+- климатик
+- автоматичен климатик
+- парктроник
+- сензори за паркиране
+- ел. стъкла
+- смарт ключ
+- ABS
+- ESP
+- airbags
+- обикновена навигация
+- обикновени LED фарове
+- камера за заден ход, ако има по-силни характеристики
 
-    def _contains_any(text: str, keywords):
-        return any(keyword in text for keyword in keywords)
+НЕ измисляй:
+- premium audio
+- Burmester
+- Bang & Olufsen
+- Harman Kardon
+- Bose
+- адаптивен круиз
+- масажни седалки
+- 360 камера
+- head-up display
+- Multibeam
+ако тези думи не присъстват ясно в текста.
 
-    def _contains_forbidden_term(value: str) -> bool:
-        lowered = _normalized_text(value)
-        return _contains_any(lowered, FORBIDDEN_NON_EQUIPMENT_TERMS)
+Ако моделът е AMG/M/RS, можеш да го използваш като характеристика, но не го наричай “спортен пакет”, освен ако не пише пакет.
 
-    def extract_source_option_lines(raw_text: str, max_lines: int = 220):
-        lines = []
-        seen = set()
+ТЕКСТ ОТ ОБЯВАТА:
+{car_context["raw_car_text"]}
+"""
 
-        for raw_line in (raw_text or "").splitlines():
-            line = _clean_text(raw_line)
-            if not line:
+    def apply_legacy_fallbacks_and_filters(data: dict[str, Any]) -> dict[str, Any]:
+        title = (data.get("title") or "").strip()
+        fuel = (data.get("fuel") or "").strip()
+        transmission = (data.get("transmission") or "").strip()
+        short_accent = (data.get("short_accent") or "").strip()
+        highlights = data.get("strong_highlights") or []
+
+        if not transmission:
+            transmission = "Автоматик"
+
+        if fuel.lower() in ["가솔린", "gasoline"]:
+            fuel = "Бензин"
+
+        if not fuel:
+            fuel = "Бензин"
+
+        if "GLE53" in title and "Mercedes" not in title:
+            title = "Mercedes-AMG GLE53 4MATIC+ Coupe"
+
+        weak_words = [
+            "led фарове",
+            "обикновени led",
+            "парктроник",
+            "сензори за паркиране",
+            "камера за заден ход",
+            "задна камера",
+            "климатик",
+            "автоматичен климатик",
+            "смарт ключ",
+            "abs",
+            "esp",
+            "airbag",
+            "airbags",
+            "ел. стъкла",
+            "електрически стъкла",
+            "навигация",
+        ]
+
+        filtered = []
+        for item in highlights:
+            if not isinstance(item, str):
                 continue
-            lowered = _normalized_text(line)
-            if len(line) < 2 or len(line) > 120:
-                continue
-            if lowered in seen:
-                continue
-            if any(term in lowered for term in UI_NOISE_TERMS):
-                continue
-            if re.fullmatch(r"[\d,./\-: ]+", line):
+
+            item_clean = item.strip()
+            item_lower = item_clean.lower()
+
+            if any(weak in item_lower for weak in weak_words):
                 continue
 
-            seen.add(lowered)
-            lines.append(line)
+            if item_clean and item_clean not in filtered:
+                filtered.append(item_clean)
 
-            if len(lines) >= max_lines:
+        data["title"] = title
+        data["fuel"] = fuel.capitalize()
+        data["transmission"] = transmission
+        data["short_accent"] = short_accent
+        data["strong_highlights"] = filtered[:8]
+
+        return data
+
+    def build_legacy_post_body(car_context: dict[str, Any], data: dict[str, Any], final_price: str, mileage: str) -> str:
+        title = data.get("title") or "Автомобил от Южна Корея"
+        fuel = data.get("fuel") or "Бензин"
+        transmission = data.get("transmission") or "Автоматик"
+        short_accent = data.get("short_accent") or title
+
+        fallback_highlights = [
+            "Премиум изпълнение",
+            "Богато оборудване",
+            "Отлична конфигурация",
+            "Комфортен кожен салон",
+            "Проверена история",
+            "Подходящ избор за внос",
+        ]
+
+        final_highlights = []
+        for item in (data.get("strong_highlights") or []) + fallback_highlights:
+            if item not in final_highlights:
+                final_highlights.append(item)
+            if len(final_highlights) == 6:
                 break
 
-        return lines
+        lines = [
+            f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {final_price} € 💥",
+            f"🚙 {title} 🚙",
+            "━━━━━━━━━━━━━━━━━━━",
+            f"⚜️ {car_context['year']} • 🖤 {mileage} KM",
+            f"⛽ {fuel} | ⚙️ {transmission}",
+            "━━━━━━━━━━━━━━━━━━━",
+            f"💎 {short_accent}",
+            "━━━━━━━━━━━━━━━━━━━",
+        ]
 
-    def build_option_evidence_block(raw_text: str, max_lines: int = 220):
-        lines = extract_source_option_lines(raw_text, max_lines=max_lines)
-        if not lines:
-            return "(няма извлечени редове)"
-        return "\n".join(f"- {line}" for line in lines)
+        for item in final_highlights:
+            lines.append(f"✅ {item}")
 
-    def _brand_drivetrain_from_source(source_feature: str, raw_text: str):
-        text = _normalized_text(f"{source_feature} {raw_text}")
-        if "4matic" in text:
-            return "4MATIC"
-        if "quattro" in text:
-            return "quattro"
-        if "xdrive" in text:
-            return "xDrive"
-        return None
-
-    def _normalize_sunroof_display(display_name: str, source_feature: str):
-        display = _clean_text(display_name)
-        source = _normalized_text(source_feature)
-        display_l = _normalized_text(display)
-
-        if "слънчев покрив" in display_l:
-            display = "Електрически люк"
-            display_l = _normalized_text(display)
-
-        panoramic_hit = any(
-            key in source for key in ("panoramic", "panorama", "панорам")
-        ) or any(
-            key in display_l for key in ("panoramic", "panorama", "панорам")
-        )
-
-        if panoramic_hit:
-            return "Панорамен покрив"
-
-        sunroof_hit = any(
-            key in source for key in ("sunroof", "moonroof", "люк")
-        ) or any(
-            key in display_l for key in ("sunroof", "moonroof", "люк")
-        )
-
-        if sunroof_hit:
-            return "Електрически люк"
-
-        return display
-
-    def normalize_feature(value: str):
-        if not isinstance(value, str):
-            return None
-
-        lowered = _normalized_text(value)
-        if not lowered:
-            return None
-        if lowered in FORBIDDEN_GENERIC_FEATURE_PHRASES:
-            return None
-        if _contains_forbidden_term(lowered):
-            return None
-
-        if "слънчев покрив" in lowered:
-            return "Електрически люк"
-
-        return _clean_text(value)
-
-    def _feature_tokens(value: str):
-        tokens = {
-            token
-            for token in re.findall(r"[a-zа-я0-9]+", _normalized_text(value), flags=re.IGNORECASE)
-            if len(token) >= 3 and token not in STOPWORDS
-        }
-        return tokens
-
-    def is_traceable_to_source(source_feature: str, raw_text: str, source_lines=None):
-        source_norm = _normalized_text(source_feature)
-        if not source_norm:
-            return False
-
-        corpus = _normalized_text(raw_text)
-        if source_norm in corpus:
-            return True
-
-        lines = source_lines or extract_source_option_lines(raw_text)
-        source_tokens = _feature_tokens(source_feature)
-        if not source_tokens:
-            return False
-
-        for line in lines:
-            line_tokens = _feature_tokens(line)
-            if not line_tokens:
-                continue
-            overlap = len(source_tokens & line_tokens) / max(len(source_tokens), 1)
-            if overlap >= 0.6:
-                return True
-
-        return False
-
-    def _is_baseline_feature(source_feature: str, display_name: str):
-        text = _normalized_text(f"{source_feature} {display_name}")
-        return any(term in text for term in BASELINE_TERMS)
-
-    def _feature_capability_key(display_name: str, source_feature: str):
-        candidate = _normalized_text(display_name or source_feature)
-        candidate = re.sub(r"[^a-zа-я0-9]+", " ", candidate).strip()
-        if "4matic" in candidate:
-            return "4matic"
-        if "quattro" in candidate:
-            return "quattro"
-        if "xdrive" in candidate:
-            return "xdrive"
-        return candidate
-
-    def normalize_display_name(display_name: str, source_feature: str, raw_text: str):
-        display = normalize_feature(display_name)
-        if not display:
-            return None
-
-        display = _normalize_sunroof_display(display, source_feature)
-
-        branded = _brand_drivetrain_from_source(source_feature, raw_text)
-        if branded and any(token in _normalized_text(display) for token in ("4x4", "awd", "4wd")):
-            display = branded
-
-        if branded and branded.lower() in _normalized_text(source_feature):
-            if any(token in _normalized_text(display) for token in ("задвижване", "driv", "awd", "4wd")):
-                display = branded
-
-        display = _clean_text(display)
-        if not display:
-            return None
-
-        lowered = _normalized_text(display)
-        if lowered in FORBIDDEN_GENERIC_FEATURE_PHRASES:
-            return None
-        if _contains_forbidden_term(lowered):
-            return None
-
-        return display
-
-    def validate_ai_feature_selection(payload, raw_text: str, max_headline: int = 3, max_additional: int = 6):
-        source_lines = extract_source_option_lines(raw_text)
-        accepted = {"headline_features": [], "additional_features": []}
-        capability_seen = set()
-
-        for section, limit in (("headline_features", max_headline), ("additional_features", max_additional)):
-            items = payload.get(section)
-            if not isinstance(items, list):
-                continue
-
-            for item in items:
-                if len(accepted[section]) >= limit:
-                    break
-                if not isinstance(item, dict):
-                    continue
-
-                source_feature = _clean_text(str(item.get("source_feature") or ""))
-                display_name_bg = _clean_text(str(item.get("display_name_bg") or ""))
-                reason = _clean_text(str(item.get("reason") or ""))
-
-                if not source_feature or not display_name_bg:
-                    continue
-                if not is_traceable_to_source(source_feature, raw_text, source_lines=source_lines):
-                    continue
-
-                normalized_display = normalize_display_name(display_name_bg, source_feature, raw_text)
-                if not normalized_display:
-                    continue
-
-                capability_key = _feature_capability_key(normalized_display, source_feature)
-                if not capability_key or capability_key in capability_seen:
-                    continue
-
-                accepted_item = {
-                    "source_feature": source_feature,
-                    "display_name_bg": normalized_display,
-                    "reason": reason,
-                }
-
-                if section == "additional_features" and _is_baseline_feature(source_feature, normalized_display):
-                    if len(accepted["headline_features"]) + len(accepted["additional_features"]) >= 3:
-                        continue
-
-                accepted[section].append(accepted_item)
-                capability_seen.add(capability_key)
-
-        return accepted
-
-    def flatten_validated_features(validated):
-        result = []
-        for section in ("headline_features", "additional_features"):
-            for item in validated.get(section, []):
-                display_name = item.get("display_name_bg")
-                if display_name and display_name not in result:
-                    result.append(display_name)
-        return result
-
-    def build_short_accent(highlights):
-        top_three = [item for item in (highlights or [])[:3] if item]
-        return " | ".join(top_three)
-
-    def build_short_accent_from_validated(validated):
-        headline = [item.get("display_name_bg", "") for item in validated.get("headline_features", [])]
-        return build_short_accent([item for item in headline if item])
-
-    def remove_accent_duplicates(highlights, short_accent: str):
-        accent_items = {
-            _normalized_text(part)
-            for part in (short_accent or "").split("|")
-            if _normalized_text(part)
-        }
-
-        result = []
-        for item in highlights or []:
-            if _normalized_text(item) in accent_items:
-                continue
-            if item not in result:
-                result.append(item)
-        return result
+        lines.append("━━━━━━━━━━━━━━━━━━━")
+        return "\n".join(lines)
 
 SAVE_DIR = "encar_images"
 MAX_IMAGES = 15
@@ -441,7 +295,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 headers = {
     "User-Agent": "Mozilla/5.0",
-    "Referer": "https://fem.encar.com/"
+    "Referer": "https://fem.encar.com/",
 }
 
 STATIC_FOOTER = """━━━━━━━━━━━━━━━━━━━
@@ -474,7 +328,7 @@ def extract_price_krw(html):
         r'"price"\s*:\s*"?([\d,]+)"?',
         r'"advertisementPrice"\s*:\s*"?([\d,]+)"?',
         r'"sellPrice"\s*:\s*"?([\d,]+)"?',
-        r'"carPrice"\s*:\s*"?([\d,]+)"?'
+        r'"carPrice"\s*:\s*"?([\d,]+)"?',
     ]
 
     for pattern in patterns:
@@ -549,109 +403,9 @@ def extract_clean_car_text(html):
 def generate_facebook_data_with_openai(car_context):
     final_price = format_eur(car_context["final_price_eur"])
     mileage = format_km(car_context["mileage"])
-    option_evidence_block = car_context.get("primary_option_evidence_block") or build_option_evidence_block(car_context["raw_car_text"])
-    main_options_block = car_context.get("main_options_evidence_block") or "(няма основни опции)"
-    ai_source_text = car_context.get("ai_source_text") or car_context["raw_car_text"]
-    metadata = {
-        "manufacturer": car_context.get("manufacturer"),
-        "model": car_context.get("model"),
-        "grade": car_context.get("grade"),
-        "grade_detail": car_context.get("grade_detail"),
-        "drivetrain_designation": car_context.get("drivetrain_designation"),
-        "detail_query_car_id": (car_context.get("option_context") or {}).get("detail_query_car_id"),
-        "vehicle_id": (car_context.get("option_context") or {}).get("vehicle_id"),
-        "incomplete_data": (car_context.get("option_context") or {}).get("is_incomplete"),
-    }
+    prompt = build_legacy_openai_prompt(car_context, final_price=final_price, mileage=mileage)
 
-    prompt = f"""
-Извлечи данни от Encar обява и върни само структурирани данни за публикация.
-
-Върни САМО валиден JSON. Без markdown. Без обяснения.
-
-JSON формат:
-{{
-  "title": "",
-  "fuel": "",
-  "transmission": "",
-    "headline_features": [
-        {{
-            "source_feature": "",
-            "display_name_bg": "",
-            "reason": ""
-        }}
-    ],
-    "additional_features": [
-        {{
-            "source_feature": "",
-            "display_name_bg": "",
-            "reason": ""
-        }}
-    ]
-}}
-
-ФАКТИ:
-Крайна цена: {final_price} €
-Година: {car_context["year"]}
-Пробег: {mileage} KM
-Производител: {metadata['manufacturer'] or 'unknown'}
-Модел: {metadata['model'] or 'unknown'}
-Ниво: {metadata['grade'] or 'unknown'}
-Ниво детайл: {metadata['grade_detail'] or 'unknown'}
-Точно задвижване: {metadata['drivetrain_designation'] or 'unknown'}
-Detail query car id: {metadata['detail_query_car_id']}
-Vehicle id: {metadata['vehicle_id']}
-
-PRIMARY SOURCE (COMPLETE APPLIED OPTIONS FROM OPTION PAGE):
-{option_evidence_block}
-
-SECONDARY SOURCE (SHORT MAIN OPTIONS FROM DETAIL PAGE):
-{main_options_block}
-
-ПРАВИЛА:
-- Пиши на български.
-- title трябва да е пълно и продаваемо име.
-- Избирай само характеристики, които са подкрепени от източниковите редове.
-- Не измисляй и не извеждай характеристики, които не присъстват в източника.
-- Разпознавай семантични еквиваленти и различни изписвания на една и съща екстра.
-- Дай приоритет на редки, скъпи и силно продаваеми екстри за съответния модел.
-- Деприоритизирай базови екстри (кожен салон, подгрев на предни седалки, автоматик, базов климатроник), но ги ползвай ако липсват по-силни.
-- Не третирай история на ПТП, гаранция, import suitability, общо състояние и Encar warranty като екстри.
-- Забранени generic фрази: "Премиум изпълнение", "Богато оборудване", "Отлична конфигурация", "Отлично оборудване", "Луксозно изпълнение", "Комфортен интериор", "Подходящ избор за внос", "Премиум автомобил", "Високо ниво на комфорт", "Богата конфигурация".
-- Никога не използвай "Слънчев покрив".
-- Използвай "Панорамен покрив" само при изрично panoramic roof.
-- Използвай "Електрически люк" за normal sunroof.
-- Запази manufacturer terms когато са налични: 4MATIC, quattro, xDrive, AIRMATIC, Distronic, Burmester, MULTIBEAM, S line.
-- За Mercedes запази "4MATIC" (не го заменяй с "4x4 задвижване").
-- За Audi запази "quattro".
-- За BMW запази "xDrive".
-- headline_features: до 3 елемента.
-- additional_features: до 6 елемента.
-- Не дублирай capability между headline_features и additional_features.
-- reason е вътрешно поле и няма да се публикува.
-- Ако има по-малко валидни екстри, върни по-малко; не добавяй пълнеж.
-- transmission ако не е ясно, остави празно.
-- title трябва да е пълно и продаваемо име, например Mercedes-AMG GLE53 4MATIC+ Coupe.
-
-ТЕКСТ ОТ ОБЯВАТА:
-{car_context["raw_car_text"]}
-"""
-
-    ai_feature_input = {
-        "metadata": metadata,
-        "primary_option_evidence_block": option_evidence_block,
-        "main_options_evidence_block": main_options_block,
-        "raw_car_text_length": len(car_context.get("raw_car_text") or ""),
-        "options_passed_to_ai_count": len((car_context.get("option_context") or {}).get("applied_options") or []),
-        "incomplete_data": metadata["incomplete_data"],
-    }
-    with open(os.path.join(SAVE_DIR, "ai_feature_input.json"), "w", encoding="utf-8") as f:
-        json.dump(ai_feature_input, f, ensure_ascii=False, indent=2)
-
-    response = client.responses.create(
-        model=OPENAI_MODEL,
-        input=prompt
-    )
-
+    response = client.responses.create(model=OPENAI_MODEL, input=prompt)
     raw = response.output_text.strip()
 
     try:
@@ -659,87 +413,17 @@ SECONDARY SOURCE (SHORT MAIN OPTIONS FROM DETAIL PAGE):
     except json.JSONDecodeError:
         raise ValueError(f"OpenAI не върна валиден JSON:\n{raw}")
 
-    data = apply_fallbacks_and_filters(data, ai_source_text)
-    with open(os.path.join(SAVE_DIR, "ai_feature_output.json"), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return data
+    return apply_fallbacks_and_filters(data)
 
 
-def apply_fallbacks_and_filters(data, raw_car_text):
-    title = (data.get("title") or "").strip()
-    fuel = (data.get("fuel") or "").strip()
-    transmission = (data.get("transmission") or "").strip()
-
-    if not transmission:
-        transmission = "Автоматик"
-
-    if fuel.lower() in ["가솔린", "gasoline"]:
-        fuel = "Бензин"
-
-    if not fuel:
-        fuel = "Бензин"
-
-    if "GLE53" in title and "Mercedes" not in title:
-        title = "Mercedes-AMG GLE53 4MATIC+ Coupe"
-
-    validated = validate_ai_feature_selection(data, raw_car_text, max_headline=3, max_additional=6)
-    selected_highlights = flatten_validated_features(validated)
-    short_accent = build_short_accent_from_validated(validated)
-
-    if not short_accent:
-        short_accent = build_short_accent(selected_highlights)
-    if not short_accent:
-        short_accent = title
-
-    data["title"] = title
-    data["fuel"] = fuel.capitalize()
-    data["transmission"] = transmission
-    data["short_accent"] = short_accent
-    data["strong_highlights"] = selected_highlights[:9]
-    data["headline_features"] = validated.get("headline_features", [])
-    data["additional_features"] = validated.get("additional_features", [])
-
-    return data
+def apply_fallbacks_and_filters(data):
+    return apply_legacy_fallbacks_and_filters(data)
 
 
 def build_facebook_post(car_context, data):
     final_price = format_eur(car_context["final_price_eur"])
     mileage = format_km(car_context["mileage"])
-
-    title = data.get("title") or "Автомобил от Южна Корея"
-    fuel = data.get("fuel") or "Бензин"
-    transmission = data.get("transmission") or "Автоматик"
-    short_accent = data.get("short_accent") or title
-
-    highlights = data.get("strong_highlights") or []
-    highlights = remove_accent_duplicates(highlights, short_accent)
-
-    final_highlights = []
-
-    for item in highlights:
-        if item not in final_highlights:
-            final_highlights.append(item)
-
-        if len(final_highlights) == 9:
-            break
-
-    lines = [
-        f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {final_price} € 💥",
-        f"🚙 {title} 🚙",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"⚜️ {car_context['year']} • 🖤 {mileage} KM",
-        f"⛽ {fuel} | ⚙️ {transmission}",
-        "━━━━━━━━━━━━━━━━━━━",
-        f"💎 {short_accent}",
-        "━━━━━━━━━━━━━━━━━━━",
-    ]
-
-    for item in final_highlights:
-        lines.append(f"✅ {item}")
-
-    lines.append("━━━━━━━━━━━━━━━━━━━")
-
-    return "\n".join(lines)
+    return build_legacy_post_body(car_context, data, final_price=final_price, mileage=mileage)
 
 
 def print_price_summary(
@@ -858,50 +542,6 @@ def main():
             )
 
             clean_car_text = extract_clean_car_text(html)
-            option_context = extract_complete_option_context_from_detail_html(html, url)
-
-            debug_artifacts = option_context.get("debug_artifacts") or {}
-            detail_preloaded_state = debug_artifacts.get("detail_preloaded_state")
-            if detail_preloaded_state is not None:
-                with open(os.path.join(SAVE_DIR, "detail_preloaded_state.json"), "w", encoding="utf-8") as f:
-                    json.dump(detail_preloaded_state, f, ensure_ascii=False, indent=2)
-
-            option_page_html = debug_artifacts.get("option_page_html")
-            if isinstance(option_page_html, str) and option_page_html:
-                with open(os.path.join(SAVE_DIR, "option_page.html"), "w", encoding="utf-8") as f:
-                    f.write(option_page_html)
-
-            with open(os.path.join(SAVE_DIR, "all_option_entries.json"), "w", encoding="utf-8") as f:
-                json.dump(option_context.get("all_option_entries") or [], f, ensure_ascii=False, indent=2)
-
-            with open(os.path.join(SAVE_DIR, "applied_options.json"), "w", encoding="utf-8") as f:
-                json.dump(option_context.get("applied_options") or [], f, ensure_ascii=False, indent=2)
-
-            applied_evidence = build_applied_option_evidence_block(option_context)
-            main_options_evidence = build_main_options_evidence_block(option_context)
-            ai_source_text = "\n".join(
-                [
-                    "ПРИЛОЖЕНИ ОПЦИИ ОТ ENCAR OPTION PAGE:",
-                    applied_evidence,
-                    "",
-                    "КРАТЪК MAIN OPTIONS БЛОК (SECONDARY):",
-                    main_options_evidence,
-                    "",
-                    "ДОПЪЛНИТЕЛЕН ТЕКСТ ОТ ДЕТАЙЛ СТРАНИЦАТА:",
-                    clean_car_text,
-                ]
-            )
-
-            print(
-                "Encar option extraction diagnostics: "
-                f"detail_query_car_id={option_context.get('detail_query_car_id')} "
-                f"vehicle_id={option_context.get('vehicle_id')} "
-                f"total_options_displayed={option_context.get('total_options_displayed')} "
-                f"applied_options_count={option_context.get('applied_options_count')} "
-                f"unresolved_option_count={len(option_context.get('unresolved_option_codes') or [])} "
-                f"options_passed_to_ai_count={len(option_context.get('applied_options') or [])} "
-                f"incomplete={option_context.get('is_incomplete')}"
-            )
 
             car_context = {
                 "url": url,
@@ -915,15 +555,6 @@ def main():
                 "formatted_final_price_eur": format_eur(final_price_eur),
                 "formatted_mileage": format_km(mileage),
                 "raw_car_text": clean_car_text,
-                "ai_source_text": ai_source_text,
-                "primary_option_evidence_block": applied_evidence,
-                "main_options_evidence_block": main_options_evidence,
-                "option_context": option_context,
-                "manufacturer": (option_context.get("metadata") or {}).get("manufacturer"),
-                "model": (option_context.get("metadata") or {}).get("model"),
-                "grade": (option_context.get("metadata") or {}).get("grade"),
-                "grade_detail": (option_context.get("metadata") or {}).get("grade_detail"),
-                "drivetrain_designation": (option_context.get("metadata") or {}).get("drivetrain_designation"),
             }
 
             with open(os.path.join(SAVE_DIR, "vehicle_context.json"), "w", encoding="utf-8") as f:
@@ -933,14 +564,12 @@ def main():
             vehicle_data = generate_facebook_data_with_openai(car_context)
 
             facebook_post = build_facebook_post(car_context, vehicle_data)
-
             vehicle_data["facebook_post"] = facebook_post
 
             with open(os.path.join(SAVE_DIR, "vehicle_facts.json"), "w", encoding="utf-8") as f:
                 json.dump(vehicle_data, f, ensure_ascii=False, indent=2)
 
             final_post = facebook_post.rstrip()
-
             while final_post.endswith("━━━━━━━━━━━━━━━━━━━"):
                 final_post = final_post[:-19].rstrip()
 
