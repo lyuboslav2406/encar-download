@@ -7,6 +7,11 @@ from .generator import process_encar, process_price_summary
 from .image_service import get_image_path
 from .models import GenerateRequest
 from .report_service import build_insurance_url, build_report_url, extract_carid_from_url, extract_report_carid
+import os
+import json
+import logging
+
+logger = logging.getLogger("encar.facebook")
 
 router = APIRouter()
 
@@ -109,3 +114,101 @@ def get_photos(job_id: str, request: Request):
         "image_urls": image_urls,
         "images_count": len(image_urls)
     }
+
+
+@router.post("/publish-facebook")
+def publish_facebook(request: Request, body: dict):
+    """Publish selected images and message to configured Facebook Page.
+
+    Expects JSON body: { "job_id": "...", "image_ids": ["img1.jpg", ...], "message": "..." }
+    """
+    try:
+        page_id = os.environ.get("FACEBOOK_PAGE_ID")
+        page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN")
+
+        if not page_id or not page_token:
+            raise HTTPException(status_code=500, detail="Facebook credentials not configured on server.")
+
+        job_id = body.get("job_id")
+        image_ids = body.get("image_ids") or []
+        message = body.get("message") or ""
+
+        # Publish each photo by uploading the local file (multipart/form-data)
+        photo_fb_ids = []
+
+        for image_name in image_ids:
+            # resolve local image path (must already be downloaded into GENERATED_DIR/job_id)
+            image_path = get_image_path(job_id, image_name)
+            if not image_path.exists() or not image_path.is_file():
+                raise HTTPException(status_code=400, detail=f"Image file not found or invalid: {image_name}")
+
+            photo_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/photos"
+
+            with open(image_path, "rb") as fh:
+                files = {"source": (image_name, fh, "image/jpeg")}
+                data = {"published": "false", "access_token": page_token}
+                resp = requests.post(photo_endpoint, files=files, data=data, timeout=60)
+
+            try:
+                resp_json = resp.json()
+            except Exception:
+                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp.text}")
+
+            # Debug: print photo upload outcome (filename, HTTP status, JSON response)
+            try:
+                print(f"facebook.photo_upload filename={image_name} status={resp.status_code} response={resp_json}", flush=True)
+            except Exception:
+                pass
+
+            if resp.status_code != 200 or "id" not in resp_json:
+                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp_json}")
+
+            photo_fb_ids.append(resp_json["id"])
+
+        # Create feed post with attached_media if any
+        feed_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/feed"
+        data = {"message": message, "access_token": page_token}
+
+        if photo_fb_ids:
+            attached = [{"media_fbid": fid} for fid in photo_fb_ids]
+            # Debug: print attached_media structure (do not include tokens)
+            try:
+                print(f"facebook.attached_media {attached}", flush=True)
+            except Exception:
+                pass
+            data["attached_media"] = json.dumps(attached)
+
+        resp = requests.post(feed_endpoint, data=data, timeout=30)
+        try:
+            resp_json = resp.json()
+        except Exception:
+            raise HTTPException(status_code=502, detail=f"Facebook feed creation failed: {resp.text}")
+
+        # Debug: print feed response (status and JSON)
+        try:
+            print(f"facebook.feed_create status={resp.status_code} response={resp_json}", flush=True)
+        except Exception:
+            pass
+
+        if resp.status_code != 200 or "id" not in resp_json:
+            raise HTTPException(status_code=502, detail=f"Facebook feed creation failed: {resp_json}")
+
+        # Construct a readable post URL from the returned id (expected format: PAGEID_POSTID)
+        post_full_id = resp_json.get("id")
+        post_url = None
+        if post_full_id:
+            parts = str(post_full_id).split("_", 1)
+            if len(parts) == 2:
+                page_part, post_part = parts[0], parts[1]
+            else:
+                page_part = page_id
+                post_part = parts[0]
+
+            post_url = f"https://www.facebook.com/{page_part}/posts/{post_part}"
+
+        return {"success": True, "post_id": post_full_id, "post_url": post_url}
+
+    except HTTPException:
+        raise
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
