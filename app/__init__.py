@@ -8,6 +8,8 @@ from starlette.responses import JSONResponse, RedirectResponse
 # Paths that should be protected for unauthenticated users (API or actions)
 PROTECTED_PREFIXES = [
     "/generate",
+    "/batch-generate",
+    "/batch-status",
     "/publish-facebook",
     "/image",
     "/download",
