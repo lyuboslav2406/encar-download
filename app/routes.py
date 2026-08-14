@@ -11,10 +11,67 @@ from .report_service import build_insurance_url, build_report_url, extract_carid
 import os
 import json
 import logging
+import threading
+import uuid
+from enum import Enum
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from typing import Optional, Dict
 
 logger = logging.getLogger("encar.facebook")
 
 router = APIRouter()
+
+# ============================================================================
+# Background job processing for concurrent Encar generation
+# ============================================================================
+
+class JobStatus(str, Enum):
+    """Job status enumeration"""
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass
+class Job:
+    """In-memory job record for background Encar processing"""
+    job_id: str
+    encar_url: str
+    status: JobStatus
+    result: Optional[dict] = None
+    error: Optional[str] = None
+
+
+# Global thread-safe job store and executor
+_jobs_lock = threading.Lock()
+_jobs: Dict[str, Job] = {}
+_executor = ThreadPoolExecutor(max_workers=3)  # Max 3 concurrent vehicle jobs
+
+
+def _process_job_background(job_id: str, url: str) -> None:
+    """Process a single vehicle URL in the background (thread worker)"""
+    try:
+        # Mark as processing
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id].status = JobStatus.PROCESSING
+        
+        # Run existing single-vehicle generation
+        result = process_encar(url)
+        
+        # Mark as completed with result
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id].result = result
+                _jobs[job_id].status = JobStatus.COMPLETED
+    except Exception as e:
+        # Mark as failed with error
+        with _jobs_lock:
+            if job_id in _jobs:
+                _jobs[job_id].error = str(e)
+                _jobs[job_id].status = JobStatus.FAILED
 
 
 @router.get("/login")
@@ -379,5 +436,80 @@ def schedule_facebook(request: Request, body: dict):
 
     except HTTPException:
         raise
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post("/batch-generate")
+def batch_generate(request: Request, body: dict):
+    """Submit multiple Encar URLs for concurrent background processing.
+    
+    Request body: { "urls": ["url1", "url2", ...] }
+    Response: { "job_ids": ["uuid1", "uuid2", ...] }
+    """
+    try:
+        urls = body.get("urls", [])
+        
+        if not urls or not isinstance(urls, list):
+            raise HTTPException(status_code=400, detail="At least one URL is required in 'urls' list")
+        
+        job_ids = []
+        for url in urls:
+            if not url or not isinstance(url, str):
+                raise HTTPException(status_code=400, detail="All URLs must be non-empty strings")
+            
+            # Create job record
+            job_id = str(uuid.uuid4())
+            job = Job(
+                job_id=job_id,
+                encar_url=url,
+                status=JobStatus.QUEUED
+            )
+            
+            # Store job
+            with _jobs_lock:
+                _jobs[job_id] = job
+            
+            # Submit to executor (max 3 concurrent jobs enforced by ThreadPoolExecutor)
+            _executor.submit(_process_job_background, job_id, url)
+            job_ids.append(job_id)
+        
+        return {"job_ids": job_ids}
+    
+    except HTTPException:
+        raise
+    except Exception as ex:
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.get("/batch-status")
+def batch_status(request: Request):
+    """Get status of all background jobs.
+    
+    Response: {
+      "jobs": [
+        { "job_id": "...", "status": "processing", "encar_url": "..." },
+        { "job_id": "...", "status": "completed", "encar_url": "...", "result": {...} },
+        { "job_id": "...", "status": "failed", "encar_url": "...", "error": "..." }
+      ]
+    }
+    """
+    try:
+        jobs_data = []
+        with _jobs_lock:
+            for job in _jobs.values():
+                job_data = {
+                    "job_id": job.job_id,
+                    "status": job.status.value,
+                    "encar_url": job.encar_url
+                }
+                if job.result is not None:
+                    job_data["result"] = job.result
+                if job.error is not None:
+                    job_data["error"] = job.error
+                jobs_data.append(job_data)
+        
+        return {"jobs": jobs_data}
+    
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))

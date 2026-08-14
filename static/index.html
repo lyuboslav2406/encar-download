@@ -679,6 +679,83 @@
       background: #1f1f1f;
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
+
+    /* Batch generation job cards */
+    .batch-input-section {
+      margin-bottom: 24px;
+    }
+
+    .batch-jobs-container {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .job-card {
+      background: #141414;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .job-card-left {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .job-card-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .job-card-url {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      word-break: break-all;
+      margin-bottom: 4px;
+    }
+
+    .job-card-status {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .job-card-status.queued {
+      color: #bdbdbd;
+    }
+
+    .job-card-status.processing {
+      color: var(--accent);
+    }
+
+    .job-card-status.completed {
+      color: #4caf50;
+    }
+
+    .job-card-status.failed {
+      color: #ff6b6b;
+    }
+
+    .job-card-error {
+      color: #ff6b6b;
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+
+    .job-card-button {
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 
@@ -716,12 +793,28 @@
     <main class="content-grid">
       <section class="card" id="postCard">
         <div class="card-title">🚗 Facebook Post Generator</div>
-        <p class="card-note">Use the shared URL above to generate the Facebook post, image ZIP and photo workflow.</p>
-        <button id="generateBtn" onclick="generate()">Generate</button>
-        <p id="status" class="status-text"></p>
 
+        <!-- Batch URL input section -->
+        <div class="batch-input-section" id="batchInputSection">
+          <p class="card-note">Enter up to 6 Encar URLs, one per line.</p>
+          <label class="field-label" for="batchUrlsInput">Encar URLs</label>
+          <textarea id="batchUrlsInput" placeholder="Paste Encar links here, one per line..." style="min-height: 120px;"></textarea>
+          <button id="batchGenerateBtn" onclick="submitBatchGeneration()">Generate</button>
+          <p id="batchInputStatus" class="status-text"></p>
+        </div>
+
+        <!-- Job dashboard section (shown after submission) -->
+        <div class="batch-jobs-container" id="batchJobsContainer" style="display: none;">
+          <!-- Job cards will be inserted here -->
+        </div>
+
+        <!-- Result editor (shown when a job is opened) -->
         <div id="result" class="result-card hidden">
-          <div class="card-title" style="margin-bottom: 14px;">Results</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div class="card-title" style="margin: 0;">Results</div>
+            <button id="backToJobsBtn" onclick="backToJobsDashboard()" style="padding: 8px 12px; font-size: 0.9rem;">← Back to Jobs</button>
+          </div>
+
           <div style="margin-bottom: 18px;">
             <div class="field-label">Prices</div>
             <pre id="priceSummary"></pre>
@@ -732,16 +825,11 @@
             <textarea id="facebookPost"></textarea>
           </div>
 
-            <div class="button-group">
-            </div>
-
           <div style="margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap;">
             <button id="publishFbBtn" onclick="publishToFacebook()">🚀 Publish to Facebook</button>
             <button id="scheduleFbBtn" onclick="showScheduleDialog()" style="background: rgba(214, 28, 28, 0.8);">📅 Schedule Post</button>
             <div id="publishStatus" class="status-text"></div>
           </div>
-
-          <!-- Download moved to top navigation -->
 
           <div style="margin-top:18px; text-align:left;">
             <div class="field-label">Photos</div>
@@ -812,6 +900,11 @@
     let latestPhotosUrl = "";
     let latestZipUrl = "";
     let sharedUrl = "";
+    
+    // Batch generation state
+    let currentJobId = null;
+    let currentBatchJobs = {};  // Map of job_id -> job data
+    let batchPollingInterval = null;
 
     async function generate() {
       let url = document.getElementById("sharedUrlInput").value.trim();
@@ -908,6 +1001,223 @@
         window.__generateLoadingInterval = null;
       }
       if (status) status.innerHTML = '';
+    }
+
+    // ========================================================================
+    // Batch generation functions
+    // ========================================================================
+
+    async function submitBatchGeneration() {
+      const textarea = document.getElementById('batchUrlsInput');
+      const statusEl = document.getElementById('batchInputStatus');
+      const btn = document.getElementById('batchGenerateBtn');
+      
+      statusEl.textContent = '';
+      
+      // Parse URLs
+      const text = textarea.value.trim();
+      if (!text) {
+        statusEl.textContent = 'Please enter at least one Encar URL.';
+        return;
+      }
+      
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+      
+      if (lines.length > 6) {
+        statusEl.textContent = 'You can process up to 6 vehicles at a time.';
+        return;
+      }
+      
+      // Submit to backend
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      
+      try {
+        const resp = await fetch('/batch-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: lines })
+        });
+        
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || 'Batch generation failed');
+        
+        // Initialize batch state
+        currentBatchJobs = {};
+        for (const jobId of data.job_ids) {
+          currentBatchJobs[jobId] = {
+            job_id: jobId,
+            encar_url: '',
+            status: 'queued',
+            result: null,
+            error: null
+          };
+        }
+        
+        // Show job dashboard
+        document.getElementById('batchInputSection').style.display = 'none';
+        document.getElementById('batchJobsContainer').style.display = 'block';
+        
+        // Start polling
+        if (batchPollingInterval) clearInterval(batchPollingInterval);
+        batchPollingInterval = setInterval(pollBatchStatus, 2000);
+        
+        // Initial poll
+        await pollBatchStatus();
+      } catch (error) {
+        statusEl.textContent = 'Error: ' + error.message;
+      } finally {
+        btn.disabled = false;
+        btn.style.opacity = '';
+      }
+    }
+
+    async function pollBatchStatus() {
+      try {
+        const resp = await fetch('/batch-status', { method: 'GET' });
+        if (!resp.ok) return;
+        
+        const data = await resp.json();
+        const jobs = data.jobs || [];
+        
+        // Update only the jobs from current batch
+        let allDone = true;
+        for (const job of jobs) {
+          if (currentBatchJobs[job.job_id]) {
+            currentBatchJobs[job.job_id] = job;
+            if (job.status !== 'completed' && job.status !== 'failed') {
+              allDone = false;
+            }
+          }
+        }
+        
+        // Render job cards
+        renderJobCards();
+        
+        // Stop polling if all jobs are done
+        if (allDone && Object.keys(currentBatchJobs).length > 0) {
+          if (batchPollingInterval) clearInterval(batchPollingInterval);
+          batchPollingInterval = null;
+        }
+      } catch (e) {
+        console.warn('Polling error:', e);
+      }
+    }
+
+    function renderJobCards() {
+      const container = document.getElementById('batchJobsContainer');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      
+      const sortedJobs = Object.values(currentBatchJobs).sort((a, b) => {
+        // Sort by status: queued/processing first, then completed, then failed
+        const order = { queued: 0, processing: 0, completed: 1, failed: 2 };
+        return (order[a.status] || 3) - (order[b.status] || 3);
+      });
+      
+      for (let i = 0; i < sortedJobs.length; i++) {
+        const job = sortedJobs[i];
+        const vehicleNum = i + 1;
+        
+        const card = document.createElement('div');
+        card.className = 'job-card';
+        
+        const left = document.createElement('div');
+        left.className = 'job-card-left';
+        
+        const info = document.createElement('div');
+        info.className = 'job-card-info';
+        
+        const urlEl = document.createElement('div');
+        urlEl.className = 'job-card-url';
+        urlEl.textContent = 'Vehicle ' + vehicleNum + ' — ' + truncateUrl(job.encar_url, 50);
+        
+        const statusEl = document.createElement('div');
+        statusEl.className = 'job-card-status ' + job.status;
+        
+        let statusText = '';
+        if (job.status === 'queued') statusText = 'Queued';
+        else if (job.status === 'processing') statusText = 'Processing...';
+        else if (job.status === 'completed') statusText = 'Ready';
+        else if (job.status === 'failed') statusText = 'Failed';
+        
+        statusEl.textContent = statusText;
+        
+        if (job.status === 'queued' || job.status === 'processing') {
+          const spinner = document.createElement('span');
+          spinner.className = 'spinner';
+          spinner.style.marginRight = '8px';
+          statusEl.insertBefore(spinner, statusEl.firstChild);
+        }
+        
+        info.appendChild(urlEl);
+        info.appendChild(statusEl);
+        
+        if (job.error) {
+          const errorEl = document.createElement('div');
+          errorEl.className = 'job-card-error';
+          errorEl.textContent = job.error;
+          info.appendChild(errorEl);
+        }
+        
+        left.appendChild(info);
+        card.appendChild(left);
+        
+        if (job.status === 'completed') {
+          const btn = document.createElement('button');
+          btn.className = 'job-card-button';
+          btn.textContent = 'Open';
+          btn.onclick = () => openJob(job.job_id);
+          card.appendChild(btn);
+        }
+        
+        container.appendChild(card);
+      }
+    }
+
+    async function openJob(jobId) {
+      const job = currentBatchJobs[jobId];
+      if (!job || !job.result) return;
+      
+      currentJobId = jobId;
+      const result = job.result;
+      
+      // Load result into editor
+      document.getElementById('priceSummary').textContent = result.price_summary || '';
+      document.getElementById('facebookPost').value = result.facebook_post || '';
+      
+      latestZipUrl = result.zip_url || '';
+      latestPhotosUrl = window.location.origin + (result.photos_url || '');
+      
+      document.getElementById('result').classList.remove('hidden');
+      
+      // Load gallery
+      if (result.images_count && result.images_count > 0) {
+        await loadGallery(latestPhotosUrl);
+      } else {
+        document.getElementById('imageGallery').innerHTML = '';
+      }
+    }
+
+    function backToJobsDashboard() {
+      currentJobId = null;
+      document.getElementById('result').classList.add('hidden');
+      document.getElementById('batchJobsContainer').style.display = 'block';
+      
+      if (batchPollingInterval) clearInterval(batchPollingInterval);
+      batchPollingInterval = setInterval(pollBatchStatus, 2000);
+    }
+
+    function truncateUrl(url, maxLen) {
+      try {
+        const u = new URL(url);
+        let text = u.hostname + u.pathname;
+        if (text.length > maxLen) text = text.substring(0, maxLen - 3) + '...';
+        return text;
+      } catch {
+        return url.length > maxLen ? url.substring(0, maxLen - 3) + '...' : url;
+      }
     }
 
     async function loadGallery(photosUrl) {
