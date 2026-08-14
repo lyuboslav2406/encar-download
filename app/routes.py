@@ -1,6 +1,7 @@
 import requests
+import os
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 
 from .config import GENERATED_DIR, HEADERS
 from .generator import process_encar, process_price_summary
@@ -14,6 +15,63 @@ import logging
 logger = logging.getLogger("encar.facebook")
 
 router = APIRouter()
+
+
+@router.get("/login")
+def login_page(request: Request):
+        html = """
+        <!doctype html>
+        <html>
+            <head><meta charset="utf-8"><title>StreamLine Auto - Login</title></head>
+            <body style="background:#111;color:#fff;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+                <div style="width:320px;padding:24px;border-radius:12px;background:#1b1b1b;border:1px solid rgba(255,255,255,0.06);">
+                    <h2 style="margin:0 0 12px">StreamLine Auto</h2>
+                    <form method="post" action="/login">
+                        <input name="password" type="password" placeholder="Password" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);margin-bottom:12px;background:#111;color:#fff;" />
+                        <button type="submit" style="width:100%;padding:10px;border-radius:8px;background:#d61c1c;color:#fff;border:none;font-weight:700">Login</button>
+                    </form>
+                </div>
+            </body>
+        </html>
+        """
+        return HTMLResponse(html)
+
+
+@router.post("/login")
+async def login(request: Request):
+    # Read password from form or JSON body
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = await request.json()
+            password = body.get("password", "")
+        else:
+            form = await request.form()
+            password = form.get("password", "")
+    except Exception:
+        password = ""
+
+    app_password = os.environ.get("APP_PASSWORD")
+    if not app_password:
+        return JSONResponse({"detail": "Server not configured: APP_PASSWORD missing"}, status_code=500)
+
+    if password != app_password:
+        # For form submission, redirect back to login with an error query
+        # Simpler: return a minimal HTML page with error
+        return HTMLResponse("<p style='color:#faa'>Incorrect password.</p><p><a href='/login'>Back</a></p>", status_code=401)
+
+    # successful login: mark session
+    request.session["authenticated"] = True
+    return RedirectResponse(url="/", status_code=302)
+
+
+@router.get("/logout")
+def logout(request: Request):
+    try:
+        request.session.pop("authenticated", None)
+    except Exception:
+        pass
+    return RedirectResponse(url="/login")
 
 
 @router.post("/generate")
