@@ -408,6 +408,7 @@
       cursor: pointer;
       border-radius: 12px;
       overflow: hidden;
+      touch-action: manipulation;
     }
 
     .image-item img {
@@ -416,6 +417,8 @@
       object-fit: cover;
       display: block;
       transition: filter 120ms ease, opacity 120ms ease, transform 120ms ease;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .image-item.unselected img {
@@ -439,6 +442,13 @@
 
     .image-item.drag-over {
       outline: 2px dashed rgba(255,255,255,0.12);
+    }
+
+    .image-item.pointer-dragging {
+      opacity: 0.6;
+      transform: scale(0.98);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
     }
 
     .image-item .overlay {
@@ -583,6 +593,92 @@
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+
+    /* Modal dialog for scheduling */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 420px;
+      width: min(90vw, 420px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #ffffff;
+    }
+
+    .modal-field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .modal-label {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .modal-input {
+      width: 100%;
+      border-radius: 12px;
+      background: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .modal-input:focus {
+      border-color: rgba(214, 28, 28, 0.75);
+      background: #252525;
+    }
+
+    .modal-error {
+      color: #ff6b6b;
+      font-size: 0.9rem;
+      margin-top: -16px;
+      margin-bottom: 16px;
+      min-height: 1.2em;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+    }
+
+    .modal-buttons .secondary-btn {
+      background: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
   </style>
 </head>
 
@@ -639,8 +735,9 @@
             <div class="button-group">
             </div>
 
-          <div style="margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center;">
+          <div style="margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap;">
             <button id="publishFbBtn" onclick="publishToFacebook()">🚀 Publish to Facebook</button>
+            <button id="scheduleFbBtn" onclick="showScheduleDialog()" style="background: rgba(214, 28, 28, 0.8);">📅 Schedule Post</button>
             <div id="publishStatus" class="status-text"></div>
           </div>
 
@@ -693,6 +790,22 @@
       StreamLine Auto Internal Tool<br />
       Version 1.0
     </footer>
+
+    <!-- Schedule Post Modal -->
+    <div id="scheduleModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-title">Schedule Facebook Post</div>
+        <div class="modal-field">
+          <label class="modal-label" for="scheduleDateInput">Schedule for (local date & time)</label>
+          <input id="scheduleDateInput" type="datetime-local" class="modal-input" />
+        </div>
+        <div id="scheduleError" class="modal-error"></div>
+        <div class="modal-buttons">
+          <button class="secondary-btn" onclick="closeScheduleDialog()">Cancel</button>
+          <button id="scheduleConfirmBtn" onclick="schedulePost()">Schedule</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -816,7 +929,15 @@
 
         // Setup drag-and-drop state
         if (!window.__dragState) {
-          window.__dragState = { dragged: null, isDragging: false };
+          window.__dragState = {
+            dragged: null,
+            isDragging: false,
+            pointerDragging: false,
+            pointerStartX: 0,
+            pointerStartY: 0,
+            pointerStartTime: 0,
+            dragThreshold: 10 // px
+          };
         }
 
         for (const url of urls) {
@@ -844,9 +965,9 @@
           item.appendChild(img);
           item.appendChild(overlay);
 
-          // make selectable by click, but ignore clicks that immediately follow dragging
+          // make selectable by click, but ignore clicks that immediately follow any dragging
           item.addEventListener('click', (e) => {
-            if (window.__dragState && window.__dragState.isDragging) return;
+            if ((window.__dragState && window.__dragState.isDragging) || (window.__dragState && window.__dragState.pointerDragging)) return;
             toggleSelection(item);
           });
 
@@ -885,6 +1006,89 @@
 
           item.addEventListener('dragenter', (e) => { item.classList.add('drag-over'); });
           item.addEventListener('dragleave', (e) => { item.classList.remove('drag-over'); });
+
+          // Pointer Events for touch and mouse reordering
+          item.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 && e.pointerType !== 'touch') return; // Only left mouse or touch
+            
+            window.__dragState.pointerStartX = e.clientX;
+            window.__dragState.pointerStartY = e.clientY;
+            window.__dragState.pointerStartTime = Date.now();
+            window.__dragState.pointerItem = item;
+            window.__dragState.pointerDragging = false;
+          });
+
+          item.addEventListener('pointermove', (e) => {
+            if (!window.__dragState.pointerItem || window.__dragState.pointerItem !== item) return;
+            
+            const deltaX = Math.abs(e.clientX - window.__dragState.pointerStartX);
+            const deltaY = Math.abs(e.clientY - window.__dragState.pointerStartY);
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Determine if this is a drag (distance > threshold)
+            if (distance > window.__dragState.dragThreshold && !window.__dragState.pointerDragging) {
+              window.__dragState.pointerDragging = true;
+              item.classList.add('pointer-dragging');
+              // Prevent scrolling during drag
+              document.body.style.overscrollBehavior = 'none';
+              e.preventDefault();
+            }
+
+            // If actively dragging, reorder
+            if (window.__dragState.pointerDragging) {
+              e.preventDefault();
+              const gallery = item.parentElement;
+              if (!gallery) return;
+
+              // Find element under pointer
+              const elementsAtPointer = document.elementsFromPoint(e.clientX, e.clientY);
+              let targetItem = null;
+              for (const el of elementsAtPointer) {
+                if (el.classList && el.classList.contains('image-item') && el !== item && el.parentElement === gallery) {
+                  targetItem = el;
+                  break;
+                }
+              }
+
+              // Reorder if we found a target
+              if (targetItem) {
+                const rect = targetItem.getBoundingClientRect();
+                const halfway = rect.left + rect.width / 2;
+                if (e.clientX < halfway) {
+                  gallery.insertBefore(item, targetItem);
+                } else {
+                  gallery.insertBefore(item, targetItem.nextSibling);
+                }
+              }
+            }
+          });
+
+          item.addEventListener('pointerup', (e) => {
+            if (!window.__dragState.pointerItem || window.__dragState.pointerItem !== item) return;
+            
+            const wasDragging = window.__dragState.pointerDragging;
+            
+            // Clean up
+            item.classList.remove('pointer-dragging');
+            window.__dragState.pointerDragging = false;
+            window.__dragState.pointerItem = null;
+            document.body.style.overscrollBehavior = '';
+
+            // Sync order if drag occurred
+            if (wasDragging) {
+              syncSelectedOrder();
+            }
+          });
+
+          item.addEventListener('pointercancel', (e) => {
+            if (window.__dragState.pointerItem === item) {
+              item.classList.remove('pointer-dragging');
+              window.__dragState.pointerDragging = false;
+              window.__dragState.pointerItem = null;
+              document.body.style.overscrollBehavior = '';
+              syncSelectedOrder();
+            }
+          });
 
           gallery.appendChild(item);
         }
@@ -1203,6 +1407,166 @@
       const downloadBtn = document.getElementById('modeDownloadBtn');
       if (downloadBtn) downloadBtn.classList.toggle('active', mode === 'download');
     }
+
+    // Schedule Post functions
+    function showScheduleDialog() {
+      const modal = document.getElementById('scheduleModal');
+      const input = document.getElementById('scheduleDateInput');
+      const errorDiv = document.getElementById('scheduleError');
+      
+      // Clear any previous error and set default value to current time + 1 hour
+      errorDiv.textContent = '';
+      const now = new Date();
+      const defaultTime = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
+      input.value = formatDatetimeForInput(defaultTime);
+      
+      modal.classList.add('active');
+      input.focus();
+    }
+
+    function closeScheduleDialog() {
+      const modal = document.getElementById('scheduleModal');
+      const errorDiv = document.getElementById('scheduleError');
+      errorDiv.textContent = '';
+      modal.classList.remove('active');
+    }
+
+    function formatDatetimeForInput(date) {
+      // Format date for datetime-local input: YYYY-MM-DDTHH:mm
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    function validateScheduledTime(datetimeString) {
+      // Validate: must be at least 10 minutes in future, no more than 30 days in future
+      if (!datetimeString) {
+        return { valid: false, error: 'Please select a date and time.' };
+      }
+
+      // Parse local datetime (datetime-local does not include timezone info)
+      const selectedDate = new Date(datetimeString);
+      if (isNaN(selectedDate.getTime())) {
+        return { valid: false, error: 'Invalid date format.' };
+      }
+
+      const now = new Date();
+      const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      if (selectedDate < tenMinutesFromNow) {
+        return { valid: false, error: 'Scheduled time must be at least 10 minutes in the future.' };
+      }
+
+      if (selectedDate > thirtyDaysFromNow) {
+        return { valid: false, error: 'Scheduled time must be no more than 30 days in the future.' };
+      }
+
+      return { valid: true };
+    }
+
+    async function schedulePost() {
+      const input = document.getElementById('scheduleDateInput');
+      const datetimeString = input.value;
+      const errorDiv = document.getElementById('scheduleError');
+      const confirmBtn = document.getElementById('scheduleConfirmBtn');
+      const status = document.getElementById('publishStatus');
+
+      errorDiv.textContent = '';
+
+      // Client-side validation
+      const validation = validateScheduledTime(datetimeString);
+      if (!validation.valid) {
+        errorDiv.textContent = validation.error;
+        return;
+      }
+
+      // Convert local datetime to Unix timestamp
+      const selectedDate = new Date(datetimeString);
+      const unixTimestamp = Math.floor(selectedDate.getTime() / 1000);
+
+      // Close modal and show loading
+      closeScheduleDialog();
+      
+      const origBtnHtml = confirmBtn.innerHTML;
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.6';
+
+      status.textContent = '';
+      status.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Scheduling...';
+
+      const schedulingMessages = ['Uploading selected photos...', 'Scheduling Facebook post...'];
+      let schedIdx = 0;
+      if (window.__scheduleLoadingInterval) clearInterval(window.__scheduleLoadingInterval);
+      window.__scheduleLoadingInterval = setInterval(() => {
+        schedIdx = (schedIdx + 1) % schedulingMessages.length;
+        status.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ' + schedulingMessages[schedIdx];
+      }, 1200);
+
+      try {
+        // derive job_id from latestPhotosUrl
+        let job_id = '';
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+
+        // derive image ids from current DOM order (only selected)
+        const domItems = Array.from(document.querySelectorAll('.image-item'));
+        const imageIds = domItems.reduce((acc, it) => {
+          if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
+          return acc;
+        }, []);
+        const message = document.getElementById('facebookPost').value || '';
+
+        const resp = await fetch('/schedule-facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id, image_ids: imageIds, message, scheduled_publish_time: unixTimestamp })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.detail || JSON.stringify(data));
+        }
+
+        // Stop loading UI
+        if (window.__scheduleLoadingInterval) { clearInterval(window.__scheduleLoadingInterval); window.__scheduleLoadingInterval = null; }
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '';
+
+        // Show success message with formatted local time
+        const formattedTime = selectedDate.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+        status.textContent = `Post scheduled successfully for ${formattedTime}`;
+      } catch (e) {
+        if (window.__scheduleLoadingInterval) { clearInterval(window.__scheduleLoadingInterval); window.__scheduleLoadingInterval = null; }
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '';
+        status.textContent = 'Schedule error: ' + (e.message || e);
+      }
+    }
+
+    // Close modal when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      const modal = document.getElementById('scheduleModal');
+      if (modal) {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) {
+            closeScheduleDialog();
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>
