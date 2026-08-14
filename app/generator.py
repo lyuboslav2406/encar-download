@@ -62,8 +62,13 @@ def process_encar(url: str):
         "krw_per_eur": krw_per_eur,
     }
 
-    vehicle_data = generate_facebook_data_with_openai(car_context)
-    facebook_post = build_facebook_post(car_context, vehicle_data)
+    try:
+        vehicle_data = generate_facebook_data_with_openai(car_context)
+        facebook_post = build_facebook_post(car_context, vehicle_data)
+    except Exception:
+        # If generation fails, continue and still attempt to download images
+        vehicle_data = {}
+        facebook_post = ""
 
     image_files = download_images(html, job_dir)
     zip_path = job_dir / "encar_images.zip"

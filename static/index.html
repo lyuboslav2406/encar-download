@@ -395,6 +395,69 @@
       transform: rotate(180deg);
     }
 
+    /* Image gallery */
+    .image-gallery {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      margin-top: 8px;
+    }
+
+    .image-item {
+      position: relative;
+      cursor: pointer;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .image-item img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      display: block;
+      transition: filter 120ms ease, opacity 120ms ease, transform 120ms ease;
+    }
+
+    .image-item.unselected img {
+      filter: grayscale(60%) brightness(0.6);
+      opacity: 0.7;
+      transform: scale(0.995);
+    }
+
+    /* Drag-and-drop visuals */
+    .image-item:not(.unselected) {
+      cursor: grab;
+    }
+
+    .image-item.dragging {
+      opacity: 0.6;
+      transform: scale(0.98);
+      cursor: grabbing;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+
+    .image-item.drag-over {
+      outline: 2px dashed rgba(255,255,255,0.12);
+    }
+
+    .image-item .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 28px;
+      background: rgba(0,0,0,0.34);
+      pointer-events: none; /* allow clicks to pass through to the parent .image-item */
+    }
+
+    .image-item.unselected .overlay {
+      display: flex;
+    }
+
     .collapse-content {
       padding: 0 28px 24px;
       display: grid;
@@ -502,6 +565,24 @@
         font-size: 0.98rem;
       }
     }
+
+    /* small spinner for loading state */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.12);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 
@@ -533,34 +614,43 @@
       <button class="mode-button" id="modeReportBtn" onclick="setMode('report')">Car Report</button>
       <button class="mode-button" id="modeInsuranceBtn" onclick="setMode('insurance')">Insurance History</button>
       <button class="mode-button" id="modePriceBtn" onclick="setMode('price')">Car Price</button>
+      <button class="mode-button" id="modeDownloadBtn" onclick="setMode('download')">Download Images</button>
     </div>
 
     <main class="content-grid">
       <section class="card" id="postCard">
         <div class="card-title">🚗 Facebook Post Generator</div>
         <p class="card-note">Use the shared URL above to generate the Facebook post, image ZIP and photo workflow.</p>
-        <button onclick="generate()">Generate</button>
+        <button id="generateBtn" onclick="generate()">Generate</button>
         <p id="status" class="status-text"></p>
 
         <div id="result" class="result-card hidden">
           <div class="card-title" style="margin-bottom: 14px;">Results</div>
           <div style="margin-bottom: 18px;">
-            <div class="field-label">Цени</div>
+            <div class="field-label">Prices</div>
             <pre id="priceSummary"></pre>
           </div>
 
           <div style="margin-bottom: 18px;">
-            <div class="field-label">Facebook пост</div>
+            <div class="field-label">Facebook post</div>
             <textarea id="facebookPost"></textarea>
           </div>
 
-          <div class="button-group">
-            <button onclick="copyPost()">📋 Copy Facebook Post</button>
-            <button onclick="copyPhotosUrl()">1️⃣ Copy Photos URL</button>
-            <button onclick="runShortcut()">2️⃣ Save Photos to iPhone</button>
+            <div class="button-group">
+            </div>
+
+          <div style="margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center;">
+            <button id="publishFbBtn" onclick="publishToFacebook()">🚀 Publish to Facebook</button>
+            <div id="publishStatus" class="status-text"></div>
           </div>
 
-          <a id="downloadZip" class="button-link" href="#" download>📦 Download Images ZIP</a>
+          <!-- Download moved to top navigation -->
+
+          <div style="margin-top:18px; text-align:left;">
+            <div class="field-label">Photos</div>
+            <div id="imageCounter" class="status-text" style="margin-bottom:6px;">Selected photos: 0 / 0</div>
+            <div id="imageGallery" class="image-gallery"></div>
+          </div>
         </div>
       </section>
 
@@ -589,79 +679,15 @@
           <pre id="priceSummaryResult"></pre>
         </div>
       </section>
+      <section class="card hidden" id="downloadCard">
+        <div class="card-title">📥 Download Images</div>
+        <p class="card-note">Download the ZIP of images generated for the last Facebook Post.</p>
+        <button onclick="downloadImages()">Download Images ZIP</button>
+        <p id="downloadStatus" class="status-text"></p>
+      </section>
     </main>
 
-    <section class="card card-collapsible">
-      <details>
-        <summary>📱 iPhone Setup</summary>
-        <div class="collapse-content">
-          <div class="step">
-            <p class="step-title">Step 1</p>
-            <p class="step-text">Create a Photos album named: <strong>StreamLine Auto</strong></p>
-          </div>
-          <div class="step">
-            <p class="step-title">Step 2</p>
-            <p class="step-text">Install the iPhone Shortcut.</p>
-          </div>
-          <div class="step">
-            <p class="step-title">Step 3</p>
-            <p class="step-text">After generating a Facebook post, press "Copy Photos URL".</p>
-          </div>
-          <div class="step">
-            <p class="step-title">Step 4</p>
-            <p class="step-text">Run the Shortcut.</p>
-          </div>
-          <div class="step">
-            <p class="step-title">Step 5</p>
-            <p class="step-text">The images will automatically be saved inside the StreamLine Auto album.</p>
-          </div>
-          <div class="step">
-            <p class="step-title">Shortcut Actions</p>
-            <div class="code-block">1. Find Photos
-Action: Find Photos
-Filter: Album is StreamLine Auto
-
-2. Delete Photos
-Action: Delete Photos
-Input: Photos
-
-3. Get Clipboard
-Action: Get Clipboard
-
-4. Download JSON
-Action: Get Contents of URL
-URL: Clipboard
-Method: GET
-
-5. Parse JSON
-Action: Get Dictionary from Contents of URL
-
-6. Extract image list
-Action: Get Value
-Key: image_urls
-Input: Dictionary
-
-7. Repeat for every image
-Action: Repeat with each item in Dictionary Value
-
-   - Get Contents of URL
-     URL: Repeat Item
-
-   - Save to Photo Album
-     Album: StreamLine Auto
-
-8. End Repeat
-Action: End Repeat
-
-9. Finish
-Action: Stop and Output</div>
-          </div>
-          <div class="download-action">
-            <button class="secondary-btn">Download Shortcut</button>
-          </div>
-        </div>
-      </details>
-    </section>
+    <!-- iPhone setup removed -->
 
     <footer class="footer">
       StreamLine Auto Internal Tool<br />
@@ -671,6 +697,7 @@ Action: Stop and Output</div>
 
   <script>
     let latestPhotosUrl = "";
+    let latestZipUrl = "";
     let sharedUrl = "";
 
     async function generate() {
@@ -683,12 +710,15 @@ Action: Stop and Output</div>
       }
 
       if (!url) {
-        alert("Paste-ни Encar линк първо.");
+        alert("Please paste an Encar link first.");
         return;
       }
 
       result.classList.add("hidden");
-      status.textContent = "Генерирам... изчакай 15-30 секунди.";
+      // show interactive loading UI
+      const genBtn = document.getElementById('generateBtn');
+      if (genBtn) { genBtn.disabled = true; genBtn.style.opacity = '0.6'; }
+      startLoadingCycle();
 
       try {
         const response = await fetch("/generate", {
@@ -710,49 +740,310 @@ Action: Stop and Output</div>
 
         document.getElementById("priceSummary").textContent = data.price_summary;
         document.getElementById("facebookPost").value = data.facebook_post;
-        document.getElementById("downloadZip").href = data.zip_url;
+        latestZipUrl = data.zip_url;
         latestPhotosUrl = window.location.origin + data.photos_url;
+        // stop loading UI and re-enable Generate
+        stopLoadingCycle();
+        if (genBtn) { genBtn.disabled = false; genBtn.style.opacity = ''; }
 
-        status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
+        status.textContent = `Done. Photos downloaded: ${data.images_count}`;
         result.classList.remove("hidden");
+        // load image gallery from the photos endpoint
+        try {
+          if (data.images_count && data.images_count > 0) {
+            await loadGallery(window.location.origin + data.photos_url);
+          } else {
+            document.getElementById('imageGallery').innerHTML = '';
+          }
+        } catch (e) {
+          console.warn('Failed to load gallery', e);
+        }
       } catch (error) {
-        status.textContent = "Грешка: " + error.message;
+        stopLoadingCycle();
+        if (genBtn) { genBtn.disabled = false; genBtn.style.opacity = ''; }
+        status.textContent = "Error: " + error.message;
       }
     }
 
-    async function copyPost() {
-      const text = document.getElementById("facebookPost").value;
+    // Loading cycle utilities ------------------------------------------------
+    function startLoadingCycle() {
+      const status = document.getElementById('status');
+      if (!status) return;
+      const messages = [
+        'Loading data from Encar...',
+        'Processing vehicle information...',
+        'Calculating final price...',
+        'Generating Facebook description...',
+        'Preparing images...'
+      ];
+      let idx = 0;
+
+      // show immediately
+      status.innerHTML = `<span class="spinner"></span><span>${messages[idx]}</span>`;
+
+      // rotate messages every 1800ms
+      window.__generateLoadingInterval = setInterval(() => {
+        idx = (idx + 1) % messages.length;
+        status.innerHTML = `<span class="spinner"></span><span>${messages[idx]}</span>`;
+      }, 1800);
+    }
+
+    function stopLoadingCycle() {
+      const status = document.getElementById('status');
+      if (window.__generateLoadingInterval) {
+        clearInterval(window.__generateLoadingInterval);
+        window.__generateLoadingInterval = null;
+      }
+      if (status) status.innerHTML = '';
+    }
+
+    async function loadGallery(photosUrl) {
+      const gallery = document.getElementById('imageGallery');
+      const counter = document.getElementById('imageCounter');
+      gallery.innerHTML = '';
+      if (!window.selectedImageIds) window.selectedImageIds = [];
 
       try {
-        await navigator.clipboard.writeText(text);
-        alert("Facebook постът е копиран.");
+        const resp = await fetch(photosUrl);
+        if (!resp.ok) {
+          updateCounter(0, 0);
+          return;
+        }
+        const json = await resp.json();
+        const urls = json.image_urls || [];
+
+        const selected = [];
+
+        // Setup drag-and-drop state
+        if (!window.__dragState) {
+          window.__dragState = { dragged: null, isDragging: false };
+        }
+
+        for (const url of urls) {
+          let id = url;
+          try {
+            id = new URL(url).pathname.split('/').pop();
+          } catch (e) {
+            // fallback to full url as id
+          }
+
+          selected.push(id);
+
+          const item = document.createElement('div');
+          item.className = 'image-item';
+          item.dataset.id = id;
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.loading = 'lazy';
+
+          const overlay = document.createElement('div');
+          overlay.className = 'overlay';
+          overlay.textContent = '✕';
+
+          item.appendChild(img);
+          item.appendChild(overlay);
+
+          // make selectable by click, but ignore clicks that immediately follow dragging
+          item.addEventListener('click', (e) => {
+            if (window.__dragState && window.__dragState.isDragging) return;
+            toggleSelection(item);
+          });
+
+          // enable HTML5 drag-and-drop for reordering selected photos
+          item.setAttribute('draggable', 'true');
+
+          item.addEventListener('dragstart', (e) => {
+            window.__dragState.isDragging = true;
+            window.__dragState.dragged = item;
+            item.classList.add('dragging');
+            try { e.dataTransfer.setData('text/plain', item.dataset.id); } catch (er) {}
+            e.dataTransfer.effectAllowed = 'move';
+          });
+
+          item.addEventListener('dragend', (e) => {
+            window.__dragState.isDragging = false;
+            if (window.__dragState.dragged) window.__dragState.dragged.classList.remove('dragging');
+            window.__dragState.dragged = null;
+            // sync selected order after drop
+            syncSelectedOrder();
+          });
+
+          item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragged = window.__dragState && window.__dragState.dragged;
+            if (!dragged || dragged === item) return;
+            const rect = item.getBoundingClientRect();
+            const halfway = rect.left + rect.width / 2;
+            const galleryNode = gallery;
+            if (e.clientX < halfway) {
+              galleryNode.insertBefore(dragged, item);
+            } else {
+              galleryNode.insertBefore(dragged, item.nextSibling);
+            }
+          });
+
+          item.addEventListener('dragenter', (e) => { item.classList.add('drag-over'); });
+          item.addEventListener('dragleave', (e) => { item.classList.remove('drag-over'); });
+
+          gallery.appendChild(item);
+        }
+
+        // all selected by default, keep order
+        window.selectedImageIds = selected.slice();
+        updateCounter(window.selectedImageIds.length, selected.length);
       } catch (e) {
-        alert("Не успях да копирам. Маркирай текста ръчно.");
+        console.warn('Error fetching photos:', e);
+        updateCounter(0, 0);
       }
     }
 
-    async function copyPhotosUrl() {
-      if (!latestPhotosUrl) {
-        alert("Няма генерирани снимки още.");
+    function toggleSelection(item) {
+      const id = item.dataset.id;
+      if (!id) return;
+
+      const idx = window.selectedImageIds.indexOf(id);
+      if (idx === -1) {
+        // currently unselected -> select
+        item.classList.remove('unselected');
+        window.selectedImageIds.push(id);
+      } else {
+        // currently selected -> unselect
+        item.classList.add('unselected');
+        window.selectedImageIds.splice(idx, 1);
+      }
+
+      const total = document.querySelectorAll('.image-item').length;
+      updateCounter(window.selectedImageIds.length, total);
+    }
+
+    function syncSelectedOrder() {
+      // rebuild window.selectedImageIds in DOM order, keeping only selected
+      const items = Array.from(document.querySelectorAll('.image-item'));
+      const ordered = [];
+      for (const it of items) {
+        if (!it.classList.contains('unselected') && it.dataset.id) ordered.push(it.dataset.id);
+      }
+      window.selectedImageIds = ordered.slice();
+      updateCounter(window.selectedImageIds.length, document.querySelectorAll('.image-item').length);
+    }
+
+    function updateCounter(selectedCount, total) {
+      const counter = document.getElementById('imageCounter');
+      if (!counter) return;
+      counter.textContent = `Selected photos: ${selectedCount} / ${total}`;
+    }
+
+    // copyPost removed (button removed from UI)
+
+    // copyPhotosUrl removed (iPhone workflow deprecated)
+
+    async function publishToFacebook() {
+      const btn = document.getElementById('publishFbBtn');
+      const status = document.getElementById('publishStatus');
+      status.textContent = '';
+
+      if (!latestPhotosUrl && (!window.selectedImageIds || window.selectedImageIds.length === 0)) {
+        // allow text-only posts, but ensure we still have message
+      }
+
+      // interactive publishing UI
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Publishing...';
+
+      const publishMessages = ['Uploading selected photos...', 'Creating Facebook post...'];
+      let pubIdx = 0;
+      status.textContent = publishMessages[pubIdx];
+      if (window.__publishLoadingInterval) clearInterval(window.__publishLoadingInterval);
+      window.__publishLoadingInterval = setInterval(() => {
+        pubIdx = (pubIdx + 1) % publishMessages.length;
+        status.textContent = publishMessages[pubIdx];
+      }, 1200);
+
+      try {
+        // derive job_id from latestPhotosUrl which is like /photos/{job_id}
+        let job_id = '';
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+
+        // derive publish order from current DOM order: include only selected items
+        const domItems = Array.from(document.querySelectorAll('.image-item'));
+        const imageIds = domItems.reduce((acc, it) => {
+          if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
+          return acc;
+        }, []);
+        const message = document.getElementById('facebookPost').value || '';
+
+        const resp = await fetch('/publish-facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: job_id, image_ids: imageIds, message })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.detail || JSON.stringify(data));
+        }
+
+        // stop loading UI
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+        btn.style.opacity = '';
+
+        // show success and link
+        if (data.post_url) {
+          status.innerHTML = 'Published successfully. <a href="' + data.post_url + '" target="_blank" rel="noopener noreferrer">Open Facebook Post</a>';
+        } else {
+          status.textContent = 'Published successfully';
+        }
+      } catch (e) {
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+        btn.style.opacity = '';
+        status.textContent = 'Publish error: ' + (e.message || e);
+      } finally {
+        // ensure interval cleared
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+      }
+    }
+
+    function downloadImages() {
+      const status = document.getElementById('downloadStatus');
+      status.textContent = '';
+      // derive job_id from latestPhotosUrl if available, else use latestZipUrl
+      let job_id = '';
+      if (latestPhotosUrl) {
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+      }
+
+      if (!job_id && latestZipUrl) {
+        // try to extract job id from zip url (/download/{job_id})
+        try {
+          const parts = latestZipUrl.split('/download/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+      }
+
+      if (!job_id) {
+        status.textContent = 'Generate a Facebook post first to prepare the images.';
         return;
       }
 
-      try {
-        await navigator.clipboard.writeText(latestPhotosUrl);
-        alert("Photos URL е копиран. Сега натисни 2️⃣ Save Photos to iPhone.");
-      } catch (e) {
-        alert("Не успях да копирам Photos URL.");
-      }
+      // trigger download
+      const downloadUrl = `/download/${job_id}`;
+      window.location.href = downloadUrl;
     }
 
-    function runShortcut() {
-      const shortcutName = "SaveStreamLinePhotos";
-      const shortcutUrl =
-        "shortcuts://run-shortcut?name=" +
-        encodeURIComponent(shortcutName);
-
-      window.location.href = shortcutUrl;
-    }
+    // runShortcut removed (iPhone workflow deprecated)
 
     function setSharedUrl() {
       const urlInput = document.getElementById("sharedUrlInput");
@@ -760,12 +1051,12 @@ Action: Stop and Output</div>
       const url = urlInput.value.trim();
 
       if (!url) {
-        status.textContent = "Paste-ни Encar линк първо.";
+        status.textContent = "Please paste an Encar link first.";
         return;
       }
 
       sharedUrl = url;
-      status.textContent = "URL зададен. Използвай желания режим.";
+      status.textContent = "URL set. Use the desired mode.";
     }
 
     async function openCarReport() {
@@ -777,13 +1068,13 @@ Action: Stop and Output</div>
       }
 
       if (!url) {
-        alert("Paste-ни Encar линк за Car Report първо.");
+        alert("Please paste an Encar link for Car Report first.");
         return;
       }
 
       sharedUrl = url;
       document.getElementById("sharedUrlInput").value = url;
-      status.textContent = "Отварям Car Report...";
+      status.textContent = "Opening Car Report...";
 
       try {
         const response = await fetch("/report-url", {
@@ -803,7 +1094,7 @@ Action: Stop and Output</div>
         window.open(data.report_url, "_blank");
         status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
       } catch (error) {
-        status.textContent = "Грешка: " + error.message;
+        status.textContent = "Error: " + error.message;
       }
     }
 
@@ -816,13 +1107,13 @@ Action: Stop and Output</div>
       }
 
       if (!url) {
-        alert("Paste-ни Encar линк за Insurance History първо.");
+        alert("Please paste an Encar link for Insurance History first.");
         return;
       }
 
       sharedUrl = url;
       document.getElementById("sharedUrlInput").value = url;
-      status.textContent = "Отварям Insurance History...";
+      status.textContent = "Opening Insurance History...";
 
       try {
         const response = await fetch("/insurance-url", {
@@ -842,7 +1133,7 @@ Action: Stop and Output</div>
         window.open(data.report_url, "_blank");
         status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
       } catch (error) {
-        status.textContent = "Грешка: " + error.message;
+        status.textContent = "Error: " + error.message;
       }
     }
 
@@ -857,13 +1148,13 @@ Action: Stop and Output</div>
       }
 
       if (!url) {
-        alert("Paste-ни Encar линк за Car Price първо.");
+        alert("Please paste an Encar link for Car Price first.");
         return;
       }
 
       sharedUrl = url;
       priceResult.classList.add("hidden");
-      status.textContent = "Зареждам ценово резюме...";
+      status.textContent = "Loading price summary...";
 
       try {
         const response = await fetch("/price-summary", {
@@ -882,9 +1173,9 @@ Action: Stop and Output</div>
 
         priceSummaryResult.textContent = data.price_summary;
         priceResult.classList.remove("hidden");
-        status.textContent = "Готово.";
+        status.textContent = "Done.";
       } catch (error) {
-        status.textContent = "Грешка: " + error.message;
+        status.textContent = "Error: " + error.message;
       }
     }
 
@@ -902,11 +1193,15 @@ Action: Stop and Output</div>
       reportCard.classList.toggle('hidden', mode !== 'report');
       insuranceCard.classList.toggle('hidden', mode !== 'insurance');
       priceCard.classList.toggle('hidden', mode !== 'price');
+      const downloadCard = document.getElementById('downloadCard');
+      if (downloadCard) downloadCard.classList.toggle('hidden', mode !== 'download');
 
       postBtn.classList.toggle('active', mode === 'post');
       reportBtn.classList.toggle('active', mode === 'report');
       insuranceBtn.classList.toggle('active', mode === 'insurance');
       priceBtn.classList.toggle('active', mode === 'price');
+      const downloadBtn = document.getElementById('modeDownloadBtn');
+      if (downloadBtn) downloadBtn.classList.toggle('active', mode === 'download');
     }
   </script>
 </body>
