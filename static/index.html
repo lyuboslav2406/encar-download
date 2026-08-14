@@ -4,105 +4,834 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>StreamLine Auto - Encar Generator</title>
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, Arial, sans-serif;
+      background: #111111;
+      color: #ffffff;
+      --bg: #111111;
+      --card: #1b1b1b;
+      --accent: #d61c1c;
+      --text-secondary: #bdbdbd;
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 30px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      padding: 18px;
-      max-width: 760px;
-      margin: auto;
-      background: #f5f5f5;
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: #ffffff;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    .page-shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 24px 0 48px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 24px;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top left, rgba(214, 28, 28, 0.32), #000 48%);
+      color: #ffffff;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .logo-text {
+      text-transform: uppercase;
+      font-family: Inter, Arial, sans-serif;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--text-secondary);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-size: 12px;
     }
 
     h1 {
-      font-size: 24px;
+      margin: 0;
+      font-size: clamp(2rem, 1.6rem + 1vw, 3rem);
+      letter-spacing: -0.03em;
     }
 
-    input, button, textarea, pre {
+    .subtitle {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      max-width: 720px;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      background: rgba(214, 28, 28, 0.14);
+      color: #ffdede;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border: 1px solid rgba(214, 28, 28, 0.3);
+    }
+
+    .content-grid {
+      display: grid;
+      gap: 24px;
+      justify-items: center;
+      margin-bottom: 24px;
+    }
+    .content-grid > section {
+      width: min(720px, 100%);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      text-align: center;
+    }
+
+    .card-collapsible {
+      width: min(720px, 100%);
+      max-width: 720px;
+      margin: 0 auto;
+      text-align: center;
+      display: block;
+    }
+
+    .card-collapsible details {
       width: 100%;
-      box-sizing: border-box;
-      font-size: 16px;
-      margin-top: 10px;
     }
 
-    input {
-      padding: 14px;
+    .card-collapsible summary {
+      justify-content: center;
+      gap: 12px;
     }
 
-    button {
-      padding: 14px;
+    .collapse-content {
+      padding: 0 28px 24px;
+      display: grid;
+      gap: 18px;
+      justify-items: center;
+      width: 100%;
+    }
+
+    .collapse-content .step {
+      width: min(680px, 100%);
+      text-align: center;
+    }
+
+    .collapse-content .step p {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .card-note {
+      margin: 0 0 18px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    input,
+    textarea,
+    .action-link {
+      width: 100%;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #232323 0%, #1f1f1f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      padding: 16px 18px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.04);
+    }
+
+    input:hover,
+    textarea:hover {
+      border-color: rgba(255, 255, 255, 0.24);
+      background: #272727;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: rgba(214, 28, 28, 0.75);
+      background: #2b2b2b;
+      box-shadow: 0 0 0 1px rgba(214, 28, 28, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.05);
+      transform: translateY(-1px);
+    }
+
+    button,
+    .button-link {
+      cursor: pointer;
       border: none;
-      border-radius: 8px;
-      background: #111;
-      color: white;
-      font-weight: bold;
+      border-radius: 18px;
+      padding: 16px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #ffffff;
+      background: var(--accent);
+      box-shadow: 0 14px 32px rgba(214, 28, 28, 0.14);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    button:hover,
+    .button-link:hover {
+      transform: translateY(-1px);
+      opacity: 0.98;
+      box-shadow: 0 16px 34px rgba(214, 28, 28, 0.18);
+    }
+
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(214, 28, 28, 0.65);
+      color: #ffffff;
+    }
+
+    .status-text {
+      margin: 16px 0 0;
+      color: var(--text-secondary);
+      min-height: 1.5em;
+      line-height: 1.6;
+    }
+
+    .card-note,
+    .subtitle {
+      max-width: 680px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .result-card {
+      margin-top: 24px;
+      background: #141414;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 22px;
     }
 
     textarea {
-      height: 420px;
-      padding: 12px;
-      white-space: pre-wrap;
+      min-height: 300px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #111111;
+      color: #ffffff;
+      margin-top: 12px;
     }
 
     pre {
-      background: white;
-      padding: 12px;
+      margin: 0;
+      background: #111111;
+      color: #ffffff;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
       white-space: pre-wrap;
-      border-radius: 8px;
+      line-height: 1.7;
+      overflow-x: auto;
     }
 
     .hidden {
       display: none;
     }
 
-    a {
-      display: block;
-      margin-top: 12px;
-      padding: 14px;
-      background: #0a7cff;
-      color: white;
-      text-align: center;
-      border-radius: 8px;
+    .mode-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .mode-button {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      background: #141414;
+      color: #ffffff;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .mode-button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .button-group a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       text-decoration: none;
-      font-weight: bold;
+      background: #222;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .code-block {
+      background: #101010;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f7f7f7;
+      border-radius: 16px;
+      padding: 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      margin: 8px 0 0;
+    }
+
+    .card-collapsible {
+      width: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .card-collapsible details {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      background: #141414;
+      padding: 18px 0 0;
+    }
+
+    .card-collapsible summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0 28px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #ffffff;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .card-collapsible summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .card-collapsible summary::after {
+      content: "▼";
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      transform-origin: center;
+      transition: transform 0.2s ease;
+    }
+
+    .card-collapsible details[open] summary::after {
+      transform: rotate(180deg);
+    }
+
+    /* Image gallery */
+    .image-gallery {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      margin-top: 8px;
+    }
+
+    .image-item {
+      position: relative;
+      cursor: pointer;
+      border-radius: 12px;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .image-item img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      display: block;
+      transition: filter 120ms ease, opacity 120ms ease, transform 120ms ease;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .image-item.unselected img {
+      filter: grayscale(60%) brightness(0.6);
+      opacity: 0.7;
+      transform: scale(0.995);
+    }
+
+    /* Drag-and-drop visuals */
+    .image-item:not(.unselected) {
+      cursor: grab;
+    }
+
+    .image-item.dragging {
+      opacity: 0.6;
+      transform: scale(0.98);
+      cursor: grabbing;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+
+    .image-item.drag-over {
+      outline: 2px dashed rgba(255,255,255,0.12);
+    }
+
+    .image-item.pointer-dragging {
+      opacity: 0.6;
+      transform: scale(0.98);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+
+    .image-item .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 28px;
+      background: rgba(0,0,0,0.34);
+      pointer-events: none; /* allow clicks to pass through to the parent .image-item */
+    }
+
+    .image-item.unselected .overlay {
+      display: flex;
+    }
+
+    .collapse-content {
+      padding: 0 28px 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .step {
+      display: grid;
+      gap: 8px;
+      border-radius: 18px;
+      background: #111111;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .step-title {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    .step-text {
+      margin: 0;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .download-action {
+      margin-top: 8px;
+    }
+
+    .footer {
+      margin-top: 38px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page-shell {
+        width: min(100%, calc(100% - 24px));
+        padding: 20px 0 32px;
+      }
+
+      .card,
+      .card-collapsible {
+        padding: 24px 20px;
+      }
+
+      .mode-button {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .button-group {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .page-shell {
+        width: min(100%, calc(100% - 16px));
+        padding: 18px 0 24px;
+      }
+
+      .card,
+      .card-collapsible {
+        padding: 18px 14px;
+      }
+
+      button,
+      input,
+      .button-link {
+        font-size: 1rem;
+      }
+
+      button,
+      .button-link {
+        width: 100%;
+      }
+
+      .button-group {
+        grid-template-columns: 1fr;
+      }
+
+      .card-note,
+      .subtitle {
+        max-width: 100%;
+      }
+
+      input,
+      textarea {
+        font-size: 1rem;
+        padding: 18px 20px;
+      }
+
+      .subtitle {
+        font-size: 0.98rem;
+      }
+    }
+
+    /* small spinner for loading state */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.12);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Modal dialog for scheduling */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px;
+      max-width: 420px;
+      width: min(90vw, 420px);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #ffffff;
+    }
+
+    .modal-field {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .modal-label {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .modal-input {
+      width: 100%;
+      border-radius: 12px;
+      background: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .modal-input:focus {
+      border-color: rgba(214, 28, 28, 0.75);
+      background: #252525;
+    }
+
+    .modal-error {
+      color: #ff6b6b;
+      font-size: 0.9rem;
+      margin-top: -16px;
+      margin-bottom: 16px;
+      min-height: 1.2em;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+    }
+
+    .modal-buttons .secondary-btn {
+      background: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
   </style>
 </head>
 
 <body>
-  <h1>StreamLine Auto</h1>
-  <p>Paste Encar link и генерирай Facebook пост + снимки.</p>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="logo">
+        <img src="logo.jpg" alt="StreamLine Auto logo" />
+      </div>
+      <p class="eyebrow">StreamLine Auto</p>
+      <h1>Encar Assistant</h1>
+      <p class="subtitle">Internal automation tool for StreamLine Auto.</p>
+    </header>
 
-  <input id="url" placeholder="Paste Encar link here..." />
+    <section class="card" id="urlCard">
+      <div class="card-title">🔗 Encar URL</div>
+      <p class="card-note">Paste the Encar URL once here, then use any mode without re-pasting.</p>
 
-  <button onclick="generate()">Generate</button>
+      <div class="input-group">
+        <label class="field-label" for="sharedUrlInput">Encar URL</label>
+        <input id="sharedUrlInput" placeholder="Paste Encar link here..." />
+      </div>
+      <button onclick="setSharedUrl()">Set URL</button>
+      <p id="urlStatus" class="status-text"></p>
+    </section>
 
-  <p id="status"></p>
+    <div class="mode-switcher">
+      <button class="mode-button active" id="modePostBtn" onclick="setMode('post')">Facebook Post</button>
+      <button class="mode-button" id="modeReportBtn" onclick="setMode('report')">Car Report</button>
+      <button class="mode-button" id="modeInsuranceBtn" onclick="setMode('insurance')">Insurance History</button>
+      <button class="mode-button" id="modePriceBtn" onclick="setMode('price')">Car Price</button>
+      <button class="mode-button" id="modeDownloadBtn" onclick="setMode('download')">Download Images</button>
+    </div>
 
-  <div id="result" class="hidden">
-    <h3>Цени</h3>
-    <pre id="priceSummary"></pre>
+    <main class="content-grid">
+      <section class="card" id="postCard">
+        <div class="card-title">🚗 Facebook Post Generator</div>
+        <p class="card-note">Use the shared URL above to generate the Facebook post, image ZIP and photo workflow.</p>
+        <button id="generateBtn" onclick="generate()">Generate</button>
+        <p id="status" class="status-text"></p>
 
-    <h3>Facebook пост</h3>
-    <textarea id="facebookPost"></textarea>
+        <div id="result" class="result-card hidden">
+          <div class="card-title" style="margin-bottom: 14px;">Results</div>
+          <div style="margin-bottom: 18px;">
+            <div class="field-label">Prices</div>
+            <pre id="priceSummary"></pre>
+          </div>
 
-    <button onclick="copyPost()">Copy Facebook Post</button>
+          <div style="margin-bottom: 18px;">
+            <div class="field-label">Facebook post</div>
+            <textarea id="facebookPost"></textarea>
+          </div>
 
-    <a id="downloadZip" href="#" download>Download Images ZIP</a>
+            <div class="button-group">
+            </div>
+
+          <div style="margin-top:10px; display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap;">
+            <button id="publishFbBtn" onclick="publishToFacebook()">🚀 Publish to Facebook</button>
+            <button id="scheduleFbBtn" onclick="showScheduleDialog()" style="background: rgba(214, 28, 28, 0.8);">📅 Schedule Post</button>
+            <div id="publishStatus" class="status-text"></div>
+          </div>
+
+          <!-- Download moved to top navigation -->
+
+          <div style="margin-top:18px; text-align:left;">
+            <div class="field-label">Photos</div>
+            <div id="imageCounter" class="status-text" style="margin-bottom:6px;">Selected photos: 0 / 0</div>
+            <div id="imageGallery" class="image-gallery"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card hidden" id="reportCard">
+        <div class="card-title">📋 Car Report</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Open Car Report.</p>
+        <button onclick="openCarReport()">Open Car Report</button>
+        <p id="reportStatus" class="status-text"></p>
+      </section>
+
+      <section class="card hidden" id="insuranceCard">
+        <div class="card-title">🛡️ Insurance History</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Open Insurance History.</p>
+        <button onclick="openInsuranceHistory()">Open Insurance History</button>
+        <p id="insuranceStatus" class="status-text"></p>
+      </section>
+
+      <section class="card hidden" id="priceCard">
+        <div class="card-title">💰 Car Price</div>
+        <p class="card-note">Uses the same car URL pasted above in Facebook Post. Just click Get Price Summary.</p>
+        <button onclick="getPriceSummary()">Get Price Summary</button>
+        <p id="priceStatus" class="status-text"></p>
+
+        <div id="priceResult" class="result-card hidden">
+          <div class="field-label">Price Summary</div>
+          <pre id="priceSummaryResult"></pre>
+        </div>
+      </section>
+      <section class="card hidden" id="downloadCard">
+        <div class="card-title">📥 Download Images</div>
+        <p class="card-note">Download the ZIP of images generated for the last Facebook Post.</p>
+        <button onclick="downloadImages()">Download Images ZIP</button>
+        <p id="downloadStatus" class="status-text"></p>
+      </section>
+    </main>
+
+    <!-- iPhone setup removed -->
+
+    <footer class="footer">
+      StreamLine Auto Internal Tool<br />
+      Version 1.0
+    </footer>
+
+    <!-- Schedule Post Modal -->
+    <div id="scheduleModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-title">Schedule Facebook Post</div>
+        <div class="modal-field">
+          <label class="modal-label" for="scheduleDateInput">Schedule for (local date & time)</label>
+          <input id="scheduleDateInput" type="datetime-local" class="modal-input" />
+        </div>
+        <div id="scheduleError" class="modal-error"></div>
+        <div class="modal-buttons">
+          <button class="secondary-btn" onclick="closeScheduleDialog()">Cancel</button>
+          <button id="scheduleConfirmBtn" onclick="schedulePost()">Schedule</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
+    let latestPhotosUrl = "";
+    let latestZipUrl = "";
+    let sharedUrl = "";
+
     async function generate() {
-      const url = document.getElementById("url").value.trim();
+      let url = document.getElementById("sharedUrlInput").value.trim();
       const status = document.getElementById("status");
       const result = document.getElementById("result");
 
       if (!url) {
-        alert("Paste-ни Encar линк първо.");
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Please paste an Encar link first.");
         return;
       }
 
       result.classList.add("hidden");
-      status.textContent = "Генерирам... изчакай 15-30 секунди.";
+      // show interactive loading UI
+      const genBtn = document.getElementById('generateBtn');
+      if (genBtn) { genBtn.disabled = true; genBtn.style.opacity = '0.6'; }
+      startLoadingCycle();
 
       try {
         const response = await fetch("/generate", {
@@ -119,27 +848,725 @@
           throw new Error(data.detail || "Unknown error");
         }
 
+        sharedUrl = url;
+        document.getElementById("sharedUrlInput").value = url;
+
         document.getElementById("priceSummary").textContent = data.price_summary;
         document.getElementById("facebookPost").value = data.facebook_post;
-        document.getElementById("downloadZip").href = data.zip_url;
+        latestZipUrl = data.zip_url;
+        latestPhotosUrl = window.location.origin + data.photos_url;
+        // stop loading UI and re-enable Generate
+        stopLoadingCycle();
+        if (genBtn) { genBtn.disabled = false; genBtn.style.opacity = ''; }
 
-        status.textContent = `Готово. Свалени снимки: ${data.images_count}`;
+        status.textContent = `Done. Photos downloaded: ${data.images_count}`;
         result.classList.remove("hidden");
+        // load image gallery from the photos endpoint
+        try {
+          if (data.images_count && data.images_count > 0) {
+            await loadGallery(window.location.origin + data.photos_url);
+          } else {
+            document.getElementById('imageGallery').innerHTML = '';
+          }
+        } catch (e) {
+          console.warn('Failed to load gallery', e);
+        }
       } catch (error) {
-        status.textContent = "Грешка: " + error.message;
+        stopLoadingCycle();
+        if (genBtn) { genBtn.disabled = false; genBtn.style.opacity = ''; }
+        status.textContent = "Error: " + error.message;
       }
     }
 
-    async function copyPost() {
-      const text = document.getElementById("facebookPost").value;
+    // Loading cycle utilities ------------------------------------------------
+    function startLoadingCycle() {
+      const status = document.getElementById('status');
+      if (!status) return;
+      const messages = [
+        'Loading data from Encar...',
+        'Processing vehicle information...',
+        'Calculating final price...',
+        'Generating Facebook description...',
+        'Preparing images...'
+      ];
+      let idx = 0;
+
+      // show immediately
+      status.innerHTML = `<span class="spinner"></span><span>${messages[idx]}</span>`;
+
+      // rotate messages every 1800ms
+      window.__generateLoadingInterval = setInterval(() => {
+        idx = (idx + 1) % messages.length;
+        status.innerHTML = `<span class="spinner"></span><span>${messages[idx]}</span>`;
+      }, 1800);
+    }
+
+    function stopLoadingCycle() {
+      const status = document.getElementById('status');
+      if (window.__generateLoadingInterval) {
+        clearInterval(window.__generateLoadingInterval);
+        window.__generateLoadingInterval = null;
+      }
+      if (status) status.innerHTML = '';
+    }
+
+    async function loadGallery(photosUrl) {
+      const gallery = document.getElementById('imageGallery');
+      const counter = document.getElementById('imageCounter');
+      gallery.innerHTML = '';
+      if (!window.selectedImageIds) window.selectedImageIds = [];
 
       try {
-        await navigator.clipboard.writeText(text);
-        alert("Facebook постът е копиран.");
+        const resp = await fetch(photosUrl);
+        if (!resp.ok) {
+          updateCounter(0, 0);
+          return;
+        }
+        const json = await resp.json();
+        const urls = json.image_urls || [];
+
+        const selected = [];
+
+        // Setup drag-and-drop state
+        if (!window.__dragState) {
+          window.__dragState = {
+            dragged: null,
+            isDragging: false,
+            pointerDragging: false,
+            pointerStartX: 0,
+            pointerStartY: 0,
+            pointerStartTime: 0,
+            dragThreshold: 10 // px
+          };
+        }
+
+        for (const url of urls) {
+          let id = url;
+          try {
+            id = new URL(url).pathname.split('/').pop();
+          } catch (e) {
+            // fallback to full url as id
+          }
+
+          selected.push(id);
+
+          const item = document.createElement('div');
+          item.className = 'image-item';
+          item.dataset.id = id;
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.loading = 'lazy';
+
+          const overlay = document.createElement('div');
+          overlay.className = 'overlay';
+          overlay.textContent = '✕';
+
+          item.appendChild(img);
+          item.appendChild(overlay);
+
+          // make selectable by click, but ignore clicks that immediately follow any dragging
+          item.addEventListener('click', (e) => {
+            if ((window.__dragState && window.__dragState.isDragging) || (window.__dragState && window.__dragState.pointerDragging)) return;
+            toggleSelection(item);
+          });
+
+          // enable HTML5 drag-and-drop for reordering selected photos
+          item.setAttribute('draggable', 'true');
+
+          item.addEventListener('dragstart', (e) => {
+            window.__dragState.isDragging = true;
+            window.__dragState.dragged = item;
+            item.classList.add('dragging');
+            try { e.dataTransfer.setData('text/plain', item.dataset.id); } catch (er) {}
+            e.dataTransfer.effectAllowed = 'move';
+          });
+
+          item.addEventListener('dragend', (e) => {
+            window.__dragState.isDragging = false;
+            if (window.__dragState.dragged) window.__dragState.dragged.classList.remove('dragging');
+            window.__dragState.dragged = null;
+            // sync selected order after drop
+            syncSelectedOrder();
+          });
+
+          item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragged = window.__dragState && window.__dragState.dragged;
+            if (!dragged || dragged === item) return;
+            const rect = item.getBoundingClientRect();
+            const halfway = rect.left + rect.width / 2;
+            const galleryNode = gallery;
+            if (e.clientX < halfway) {
+              galleryNode.insertBefore(dragged, item);
+            } else {
+              galleryNode.insertBefore(dragged, item.nextSibling);
+            }
+          });
+
+          item.addEventListener('dragenter', (e) => { item.classList.add('drag-over'); });
+          item.addEventListener('dragleave', (e) => { item.classList.remove('drag-over'); });
+
+          // Pointer Events for touch and mouse reordering
+          item.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0 && e.pointerType !== 'touch') return; // Only left mouse or touch
+            
+            window.__dragState.pointerStartX = e.clientX;
+            window.__dragState.pointerStartY = e.clientY;
+            window.__dragState.pointerStartTime = Date.now();
+            window.__dragState.pointerItem = item;
+            window.__dragState.pointerDragging = false;
+          });
+
+          item.addEventListener('pointermove', (e) => {
+            if (!window.__dragState.pointerItem || window.__dragState.pointerItem !== item) return;
+            
+            const deltaX = Math.abs(e.clientX - window.__dragState.pointerStartX);
+            const deltaY = Math.abs(e.clientY - window.__dragState.pointerStartY);
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            // Determine if this is a drag (distance > threshold)
+            if (distance > window.__dragState.dragThreshold && !window.__dragState.pointerDragging) {
+              window.__dragState.pointerDragging = true;
+              item.classList.add('pointer-dragging');
+              // Prevent scrolling during drag
+              document.body.style.overscrollBehavior = 'none';
+              e.preventDefault();
+            }
+
+            // If actively dragging, reorder
+            if (window.__dragState.pointerDragging) {
+              e.preventDefault();
+              const gallery = item.parentElement;
+              if (!gallery) return;
+
+              // Find element under pointer
+              const elementsAtPointer = document.elementsFromPoint(e.clientX, e.clientY);
+              let targetItem = null;
+              for (const el of elementsAtPointer) {
+                if (el.classList && el.classList.contains('image-item') && el !== item && el.parentElement === gallery) {
+                  targetItem = el;
+                  break;
+                }
+              }
+
+              // Reorder if we found a target
+              if (targetItem) {
+                const rect = targetItem.getBoundingClientRect();
+                const halfway = rect.left + rect.width / 2;
+                if (e.clientX < halfway) {
+                  gallery.insertBefore(item, targetItem);
+                } else {
+                  gallery.insertBefore(item, targetItem.nextSibling);
+                }
+              }
+            }
+          });
+
+          item.addEventListener('pointerup', (e) => {
+            if (!window.__dragState.pointerItem || window.__dragState.pointerItem !== item) return;
+            
+            const wasDragging = window.__dragState.pointerDragging;
+            
+            // Clean up
+            item.classList.remove('pointer-dragging');
+            window.__dragState.pointerDragging = false;
+            window.__dragState.pointerItem = null;
+            document.body.style.overscrollBehavior = '';
+
+            // Sync order if drag occurred
+            if (wasDragging) {
+              syncSelectedOrder();
+            }
+          });
+
+          item.addEventListener('pointercancel', (e) => {
+            if (window.__dragState.pointerItem === item) {
+              item.classList.remove('pointer-dragging');
+              window.__dragState.pointerDragging = false;
+              window.__dragState.pointerItem = null;
+              document.body.style.overscrollBehavior = '';
+              syncSelectedOrder();
+            }
+          });
+
+          gallery.appendChild(item);
+        }
+
+        // all selected by default, keep order
+        window.selectedImageIds = selected.slice();
+        updateCounter(window.selectedImageIds.length, selected.length);
       } catch (e) {
-        alert("Не успях да копирам. Маркирай текста ръчно.");
+        console.warn('Error fetching photos:', e);
+        updateCounter(0, 0);
       }
     }
+
+    function toggleSelection(item) {
+      const id = item.dataset.id;
+      if (!id) return;
+
+      const idx = window.selectedImageIds.indexOf(id);
+      if (idx === -1) {
+        // currently unselected -> select
+        item.classList.remove('unselected');
+        window.selectedImageIds.push(id);
+      } else {
+        // currently selected -> unselect
+        item.classList.add('unselected');
+        window.selectedImageIds.splice(idx, 1);
+      }
+
+      const total = document.querySelectorAll('.image-item').length;
+      updateCounter(window.selectedImageIds.length, total);
+    }
+
+    function syncSelectedOrder() {
+      // rebuild window.selectedImageIds in DOM order, keeping only selected
+      const items = Array.from(document.querySelectorAll('.image-item'));
+      const ordered = [];
+      for (const it of items) {
+        if (!it.classList.contains('unselected') && it.dataset.id) ordered.push(it.dataset.id);
+      }
+      window.selectedImageIds = ordered.slice();
+      updateCounter(window.selectedImageIds.length, document.querySelectorAll('.image-item').length);
+    }
+
+    function updateCounter(selectedCount, total) {
+      const counter = document.getElementById('imageCounter');
+      if (!counter) return;
+      counter.textContent = `Selected photos: ${selectedCount} / ${total}`;
+    }
+
+    // copyPost removed (button removed from UI)
+
+    // copyPhotosUrl removed (iPhone workflow deprecated)
+
+    async function publishToFacebook() {
+      const btn = document.getElementById('publishFbBtn');
+      const status = document.getElementById('publishStatus');
+      status.textContent = '';
+
+      if (!latestPhotosUrl && (!window.selectedImageIds || window.selectedImageIds.length === 0)) {
+        // allow text-only posts, but ensure we still have message
+      }
+
+      // interactive publishing UI
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Publishing...';
+
+      const publishMessages = ['Uploading selected photos...', 'Creating Facebook post...'];
+      let pubIdx = 0;
+      status.textContent = publishMessages[pubIdx];
+      if (window.__publishLoadingInterval) clearInterval(window.__publishLoadingInterval);
+      window.__publishLoadingInterval = setInterval(() => {
+        pubIdx = (pubIdx + 1) % publishMessages.length;
+        status.textContent = publishMessages[pubIdx];
+      }, 1200);
+
+      try {
+        // derive job_id from latestPhotosUrl which is like /photos/{job_id}
+        let job_id = '';
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+
+        // derive publish order from current DOM order: include only selected items
+        const domItems = Array.from(document.querySelectorAll('.image-item'));
+        const imageIds = domItems.reduce((acc, it) => {
+          if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
+          return acc;
+        }, []);
+        const message = document.getElementById('facebookPost').value || '';
+
+        const resp = await fetch('/publish-facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: job_id, image_ids: imageIds, message })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.detail || JSON.stringify(data));
+        }
+
+        // stop loading UI
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+        btn.style.opacity = '';
+
+        // show success and link
+        if (data.post_url) {
+          status.innerHTML = 'Published successfully. <a href="' + data.post_url + '" target="_blank" rel="noopener noreferrer">Open Facebook Post</a>';
+        } else {
+          status.textContent = 'Published successfully';
+        }
+      } catch (e) {
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+        btn.style.opacity = '';
+        status.textContent = 'Publish error: ' + (e.message || e);
+      } finally {
+        // ensure interval cleared
+        if (window.__publishLoadingInterval) { clearInterval(window.__publishLoadingInterval); window.__publishLoadingInterval = null; }
+      }
+    }
+
+    function downloadImages() {
+      const status = document.getElementById('downloadStatus');
+      status.textContent = '';
+      // derive job_id from latestPhotosUrl if available, else use latestZipUrl
+      let job_id = '';
+      if (latestPhotosUrl) {
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+      }
+
+      if (!job_id && latestZipUrl) {
+        // try to extract job id from zip url (/download/{job_id})
+        try {
+          const parts = latestZipUrl.split('/download/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+      }
+
+      if (!job_id) {
+        status.textContent = 'Generate a Facebook post first to prepare the images.';
+        return;
+      }
+
+      // trigger download
+      const downloadUrl = `/download/${job_id}`;
+      window.location.href = downloadUrl;
+    }
+
+    // runShortcut removed (iPhone workflow deprecated)
+
+    function setSharedUrl() {
+      const urlInput = document.getElementById("sharedUrlInput");
+      const status = document.getElementById("urlStatus");
+      const url = urlInput.value.trim();
+
+      if (!url) {
+        status.textContent = "Please paste an Encar link first.";
+        return;
+      }
+
+      sharedUrl = url;
+      status.textContent = "URL set. Use the desired mode.";
+    }
+
+    async function openCarReport() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("reportStatus");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Please paste an Encar link for Car Report first.");
+        return;
+      }
+
+      sharedUrl = url;
+      document.getElementById("sharedUrlInput").value = url;
+      status.textContent = "Opening Car Report...";
+
+      try {
+        const response = await fetch("/report-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        window.open(data.report_url, "_blank");
+        status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
+      } catch (error) {
+        status.textContent = "Error: " + error.message;
+      }
+    }
+
+    async function openInsuranceHistory() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("insuranceStatus");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Please paste an Encar link for Insurance History first.");
+        return;
+      }
+
+      sharedUrl = url;
+      document.getElementById("sharedUrlInput").value = url;
+      status.textContent = "Opening Insurance History...";
+
+      try {
+        const response = await fetch("/insurance-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        window.open(data.report_url, "_blank");
+        status.textContent = `Car ID: ${data.carid} | ${data.report_url}`;
+      } catch (error) {
+        status.textContent = "Error: " + error.message;
+      }
+    }
+
+    async function getPriceSummary() {
+      let url = document.getElementById("sharedUrlInput").value.trim();
+      const status = document.getElementById("priceStatus");
+      const priceResult = document.getElementById("priceResult");
+      const priceSummaryResult = document.getElementById("priceSummaryResult");
+
+      if (!url) {
+        url = sharedUrl;
+      }
+
+      if (!url) {
+        alert("Please paste an Encar link for Car Price first.");
+        return;
+      }
+
+      sharedUrl = url;
+      priceResult.classList.add("hidden");
+      status.textContent = "Loading price summary...";
+
+      try {
+        const response = await fetch("/price-summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Unknown error");
+        }
+
+        priceSummaryResult.textContent = data.price_summary;
+        priceResult.classList.remove("hidden");
+        status.textContent = "Done.";
+      } catch (error) {
+        status.textContent = "Error: " + error.message;
+      }
+    }
+
+    function setMode(mode) {
+      const postCard = document.getElementById('postCard');
+      const reportCard = document.getElementById('reportCard');
+      const insuranceCard = document.getElementById('insuranceCard');
+      const priceCard = document.getElementById('priceCard');
+      const postBtn = document.getElementById('modePostBtn');
+      const reportBtn = document.getElementById('modeReportBtn');
+      const insuranceBtn = document.getElementById('modeInsuranceBtn');
+      const priceBtn = document.getElementById('modePriceBtn');
+
+      postCard.classList.toggle('hidden', mode !== 'post');
+      reportCard.classList.toggle('hidden', mode !== 'report');
+      insuranceCard.classList.toggle('hidden', mode !== 'insurance');
+      priceCard.classList.toggle('hidden', mode !== 'price');
+      const downloadCard = document.getElementById('downloadCard');
+      if (downloadCard) downloadCard.classList.toggle('hidden', mode !== 'download');
+
+      postBtn.classList.toggle('active', mode === 'post');
+      reportBtn.classList.toggle('active', mode === 'report');
+      insuranceBtn.classList.toggle('active', mode === 'insurance');
+      priceBtn.classList.toggle('active', mode === 'price');
+      const downloadBtn = document.getElementById('modeDownloadBtn');
+      if (downloadBtn) downloadBtn.classList.toggle('active', mode === 'download');
+    }
+
+    // Schedule Post functions
+    function showScheduleDialog() {
+      const modal = document.getElementById('scheduleModal');
+      const input = document.getElementById('scheduleDateInput');
+      const errorDiv = document.getElementById('scheduleError');
+      
+      // Clear any previous error and set default value to current time + 1 hour
+      errorDiv.textContent = '';
+      const now = new Date();
+      const defaultTime = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
+      input.value = formatDatetimeForInput(defaultTime);
+      
+      modal.classList.add('active');
+      input.focus();
+    }
+
+    function closeScheduleDialog() {
+      const modal = document.getElementById('scheduleModal');
+      const errorDiv = document.getElementById('scheduleError');
+      errorDiv.textContent = '';
+      modal.classList.remove('active');
+    }
+
+    function formatDatetimeForInput(date) {
+      // Format date for datetime-local input: YYYY-MM-DDTHH:mm
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    function validateScheduledTime(datetimeString) {
+      // Validate: must be at least 10 minutes in future, no more than 30 days in future
+      if (!datetimeString) {
+        return { valid: false, error: 'Please select a date and time.' };
+      }
+
+      // Parse local datetime (datetime-local does not include timezone info)
+      const selectedDate = new Date(datetimeString);
+      if (isNaN(selectedDate.getTime())) {
+        return { valid: false, error: 'Invalid date format.' };
+      }
+
+      const now = new Date();
+      const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      if (selectedDate < tenMinutesFromNow) {
+        return { valid: false, error: 'Scheduled time must be at least 10 minutes in the future.' };
+      }
+
+      if (selectedDate > thirtyDaysFromNow) {
+        return { valid: false, error: 'Scheduled time must be no more than 30 days in the future.' };
+      }
+
+      return { valid: true };
+    }
+
+    async function schedulePost() {
+      const input = document.getElementById('scheduleDateInput');
+      const datetimeString = input.value;
+      const errorDiv = document.getElementById('scheduleError');
+      const confirmBtn = document.getElementById('scheduleConfirmBtn');
+      const status = document.getElementById('publishStatus');
+
+      errorDiv.textContent = '';
+
+      // Client-side validation
+      const validation = validateScheduledTime(datetimeString);
+      if (!validation.valid) {
+        errorDiv.textContent = validation.error;
+        return;
+      }
+
+      // Convert local datetime to Unix timestamp
+      const selectedDate = new Date(datetimeString);
+      const unixTimestamp = Math.floor(selectedDate.getTime() / 1000);
+
+      // Close modal and show loading
+      closeScheduleDialog();
+      
+      const origBtnHtml = confirmBtn.innerHTML;
+      confirmBtn.disabled = true;
+      confirmBtn.style.opacity = '0.6';
+
+      status.textContent = '';
+      status.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Scheduling...';
+
+      const schedulingMessages = ['Uploading selected photos...', 'Scheduling Facebook post...'];
+      let schedIdx = 0;
+      if (window.__scheduleLoadingInterval) clearInterval(window.__scheduleLoadingInterval);
+      window.__scheduleLoadingInterval = setInterval(() => {
+        schedIdx = (schedIdx + 1) % schedulingMessages.length;
+        status.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span> ' + schedulingMessages[schedIdx];
+      }, 1200);
+
+      try {
+        // derive job_id from latestPhotosUrl
+        let job_id = '';
+        try {
+          const parts = latestPhotosUrl.split('/photos/');
+          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+        } catch (e) {}
+
+        // derive image ids from current DOM order (only selected)
+        const domItems = Array.from(document.querySelectorAll('.image-item'));
+        const imageIds = domItems.reduce((acc, it) => {
+          if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
+          return acc;
+        }, []);
+        const message = document.getElementById('facebookPost').value || '';
+
+        const resp = await fetch('/schedule-facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id, image_ids: imageIds, message, scheduled_publish_time: unixTimestamp })
+        });
+
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.detail || JSON.stringify(data));
+        }
+
+        // Stop loading UI
+        if (window.__scheduleLoadingInterval) { clearInterval(window.__scheduleLoadingInterval); window.__scheduleLoadingInterval = null; }
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '';
+
+        // Show success message with formatted local time
+        const formattedTime = selectedDate.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+        status.textContent = `Post scheduled successfully for ${formattedTime}`;
+      } catch (e) {
+        if (window.__scheduleLoadingInterval) { clearInterval(window.__scheduleLoadingInterval); window.__scheduleLoadingInterval = null; }
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '';
+        status.textContent = 'Schedule error: ' + (e.message || e);
+      }
+    }
+
+    // Close modal when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      const modal = document.getElementById('scheduleModal');
+      if (modal) {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) {
+            closeScheduleDialog();
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>
