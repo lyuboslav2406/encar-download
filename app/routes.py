@@ -527,6 +527,105 @@ def call_buffer_graphql(api_key: str, query: str, variables: dict = None) -> dic
     return data
 
 
+# ============================================================================
+# Helper functions for Cloudflare R2 storage (scheduled posts)
+# ============================================================================
+
+def upload_scheduled_images_to_r2(job_id: str, image_ids: list) -> list:
+    """Upload selected local images to Cloudflare R2 and return public URLs.
+    
+    Args:
+        job_id: Job ID
+        image_ids: List of image filenames to upload
+    
+    Returns: List of public R2 URLs in exact same order as image_ids
+    Raises: HTTPException if validation or upload fails
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    # Validate R2 environment variables
+    r2_endpoint = os.environ.get("R2_ENDPOINT_URL")
+    r2_access_key = os.environ.get("R2_ACCESS_KEY_ID")
+    r2_secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+    r2_bucket = os.environ.get("R2_BUCKET_NAME")
+    r2_public_url = os.environ.get("R2_PUBLIC_URL")
+    
+    if not all([r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, r2_public_url]):
+        raise HTTPException(
+            status_code=500,
+            detail="R2 storage not configured (missing R2_* environment variables)."
+        )
+    
+    # Create S3-compatible client for R2
+    try:
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=r2_endpoint,
+            aws_access_key_id=r2_access_key,
+            aws_secret_access_key=r2_secret_key,
+            region_name="auto"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to initialize R2 client: {str(e)}")
+    
+    # Track uploaded object keys for cleanup on error
+    uploaded_keys = []
+    public_urls = []
+    
+    try:
+        for image_name in image_ids:
+            # Safely resolve local image path
+            local_path = resolve_safe_job_image(job_id, image_name)
+            
+            # Generate unique object key to avoid collisions
+            # Format: scheduled/{job_id}/{uuid-prefix}/{image_name}
+            import uuid
+            unique_prefix = str(uuid.uuid4())[:8]
+            object_key = f"scheduled/{job_id}/{unique_prefix}/{image_name}"
+            
+            # Upload to R2
+            try:
+                with open(local_path, "rb") as fh:
+                    s3_client.put_object(
+                        Bucket=r2_bucket,
+                        Key=object_key,
+                        Body=fh.read(),
+                        ContentType="image/jpeg"
+                    )
+            except ClientError as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"R2 upload failed for {image_name}: {str(e)}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"R2 upload error for {image_name}: {str(e)}"
+                )
+            
+            uploaded_keys.append(object_key)
+            
+            # Build public URL (remove trailing slash from R2_PUBLIC_URL, then append object_key)
+            public_url = f"{r2_public_url.rstrip('/')}/{object_key}"
+            public_urls.append(public_url)
+        
+        return public_urls
+    
+    except HTTPException:
+        # Attempt cleanup of uploaded objects
+        try:
+            for key in uploaded_keys:
+                try:
+                    s3_client.delete_object(Bucket=r2_bucket, Key=key)
+                except Exception:
+                    pass  # Best-effort cleanup, do not hide original error
+        except Exception:
+            pass
+        
+        raise
+
+
 @router.post("/publish-facebook")
 def publish_facebook(request: Request, body: dict):
     """Publish selected images and message to Buffer (now, via shareNow mode).
@@ -700,17 +799,15 @@ def schedule_facebook(request: Request, body: dict):
             except HTTPException as e:
                 raise HTTPException(status_code=400, detail=f"Image validation failed: {e.detail}")
 
-        # Generate a cryptographically secure media token for this job's images
-        # Token must be valid until at least scheduled_publish_time + 1 hour
-        token_expiry = scheduled_timestamp + 3600
-        media_token = create_media_token(job_id, image_ids, expires_at=token_expiry)
-
-        # Build Buffer asset URLs and structure with correct image nesting
+        # Upload images to R2 (if any) and build asset URLs
         assets = []
         if image_ids:
-            for image_name in image_ids:
-                url = build_buffer_media_url(request, media_token, image_name)
-                assets.append({"image": {"url": url}})
+            # Upload to R2 and get public URLs
+            r2_public_urls = upload_scheduled_images_to_r2(job_id, image_ids)
+            
+            # Build Buffer asset URLs with R2 public URLs (preserving order)
+            for r2_url in r2_public_urls:
+                assets.append({"image": {"url": r2_url}})
 
         # Convert Unix timestamp to ISO 8601 UTC (e.g., 2026-09-05T15:30:00Z)
         from datetime import datetime, timezone
