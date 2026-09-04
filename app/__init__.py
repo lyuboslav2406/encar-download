@@ -22,6 +22,9 @@ PROTECTED_PREFIXES = [
 # Public paths that do not require authentication
 PUBLIC_PATHS = ["/login", "/logout"]
 
+# Public prefixes for Buffer media (publicly accessible, no auth required)
+PUBLIC_PREFIXES = ["/buffer-media"]
+
 from .config import STATIC_DIR
 from .routes import router
 
@@ -44,6 +47,11 @@ def create_app() -> FastAPI:
             # Allow static assets needed for the login page and explicit public paths
             if path in PUBLIC_PATHS or path.startswith("/static") or path.startswith("/favicon") or path.startswith("/site.webmanifest"):
                 return await call_next(request)
+
+            # Allow public prefixes (e.g., /buffer-media)
+            for public_prefix in PUBLIC_PREFIXES:
+                if path.startswith(public_prefix):
+                    return await call_next(request)
 
             # If session indicates authenticated, allow
             sess = request.session
