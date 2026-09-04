@@ -288,7 +288,7 @@ JSON формат:
         return "\n".join(lines)
 
 SAVE_DIR = "encar_images"
-MAX_IMAGES = 15
+MAX_IMAGES = 12
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -301,7 +301,7 @@ headers = {
 STATIC_FOOTER = """━━━━━━━━━━━━━━━━━━━
 ✅ Възможност за лизинг без първоначална вноска
 ✅ VIN проверка + пълен списък с екстри при интерес
-✅ Доставка до 3–4 месеца – всичко организирано от нас
+✅ Доставка до 3 месеца – всичко организирано от нас
 ✅ Пълно съдействие до регистрация в България
 ━━━━━━━━━━━━━━━━━━━
 📲 Следвайте ни във Facebook за още предложения
