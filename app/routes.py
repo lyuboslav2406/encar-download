@@ -10,10 +10,13 @@ from .models import GenerateRequest
 from .report_service import build_insurance_url, build_report_url, extract_carid_from_url, extract_report_carid
 import os
 import json
+import base64
+import hmac
+import hashlib
+import time
 import logging
 import threading
 import uuid
-import secrets
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -25,11 +28,10 @@ logger = logging.getLogger("encar.facebook")
 router = APIRouter()
 
 # ============================================================================
-# Media token storage for Buffer public image URLs
+# Stateless signed tokens for Buffer public image URLs
 # ============================================================================
-# Maps token -> {job_id, image_names (list), expires_at}
-_media_tokens_lock = threading.Lock()
-_media_tokens: Dict[str, dict] = {}
+# Tokens are cryptographically signed and contain job_id + image_names + expiry.
+# No process-local storage needed; works reliably across Render worker processes.
 
 # ============================================================================
 # Background job processing for concurrent Encar generation
@@ -240,32 +242,215 @@ def get_photos(job_id: str, request: Request):
     }
 
 
+# ============================================================================
+# Stateless signed token functions for Buffer media URLs
+# ============================================================================
+
+def resolve_safe_job_image(job_id: str, image_name: str) -> Path:
+    """Safely resolve job image path with full traversal protection.
+    
+    Requirements:
+    - image_name must be a simple filename only (no path separators)
+    - image_name must have .jpg suffix
+    - resolved job directory must be within GENERATED_DIR
+    - resolved image path must be within the job directory
+    - image file must exist and be a regular file
+    
+    Args:
+        job_id: Job ID (directory name)
+        image_name: Image filename
+    
+    Returns: Absolute Path to the image file
+    Raises: HTTPException if validation fails
+    """
+    # Resolve GENERATED_DIR to absolute path
+    generated_dir = GENERATED_DIR.resolve()
+    
+    # Validate job_id is a simple directory name (basic UUID format)
+    # Resolve job directory
+    job_dir = (generated_dir / job_id).resolve()
+    
+    # Ensure job directory is within GENERATED_DIR
+    try:
+        job_dir.relative_to(generated_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID.")
+    
+    # Validate image_name is a simple filename only
+    # - Must not contain path separators
+    # - Must match Path.name (no directory components)
+    if "/" in image_name or "\\" in image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    if Path(image_name).name != image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Require .jpg suffix
+    if not image_name.lower().endswith(".jpg"):
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Resolve final image path
+    image_path = (job_dir / image_name).resolve()
+    
+    # Ensure image path is within the job directory
+    try:
+        image_path.relative_to(job_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Require file to exist and be a regular file
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    return image_path
+
+
+def get_media_secret() -> str:
+    """Get the secret for signing media tokens.
+    
+    Prefer BUFFER_MEDIA_SECRET if set, else use SESSION_SECRET.
+    One of these must be configured.
+    """
+    secret = os.environ.get("BUFFER_MEDIA_SECRET")
+    if secret:
+        return secret
+    
+    secret = os.environ.get("SESSION_SECRET")
+    if secret:
+        return secret
+    
+    raise RuntimeError("BUFFER_MEDIA_SECRET or SESSION_SECRET must be set for media tokens")
+
+
+def create_media_token(job_id: str, image_names: list) -> str:
+    """Create a cryptographically signed media token.
+    
+    Token contains job_id, image_names, and expiry time (1 hour).
+    Format: base64url(payload) + "." + base64url(HMAC-SHA256 signature)
+    
+    Token is stateless and does not require process-local storage.
+    Works reliably across all Render worker processes.
+    """
+    secret = get_media_secret()
+    
+    # Payload: job_id, image_names, expiry (1 hour from now)
+    payload = {
+        "job_id": job_id,
+        "image_names": image_names,
+        "exp": int(time.time()) + 3600  # 1 hour expiry
+    }
+    
+    # JSON encode and base64url encode (no padding)
+    payload_json = json.dumps(payload, separators=(',', ':'))
+    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).rstrip(b'=').decode()
+    
+    # Sign with HMAC-SHA256
+    signature = hmac.new(
+        secret.encode(),
+        payload_b64.encode(),
+        hashlib.sha256
+    ).digest()
+    signature_b64 = base64.urlsafe_b64encode(signature).rstrip(b'=').decode()
+    
+    # Return token
+    return f"{payload_b64}.{signature_b64}"
+
+
+def verify_media_token(token: str) -> Optional[tuple]:
+    """Verify a signed media token and extract job_id and image_names.
+    
+    Args:
+        token: Signed token string
+    
+    Returns: (job_id, image_names) tuple if valid, None otherwise
+    """
+    try:
+        secret = get_media_secret()
+        
+        # Split token into payload and signature
+        parts = token.split(".", 1)
+        if len(parts) != 2:
+            return None
+        
+        payload_b64, signature_b64 = parts
+        
+        # Add padding back if needed for base64 decoding
+        payload_json = base64.urlsafe_b64decode(payload_b64 + "==")
+        signature = base64.urlsafe_b64decode(signature_b64 + "==")
+        
+        # Verify signature using hmac.compare_digest (constant-time comparison)
+        expected_signature = hmac.new(
+            secret.encode(),
+            payload_b64.encode(),
+            hashlib.sha256
+        ).digest()
+        
+        if not hmac.compare_digest(signature, expected_signature):
+            return None
+        
+        # Decode payload
+        payload = json.loads(payload_json)
+        
+        # Check expiry
+        if int(time.time()) > payload.get("exp", 0):
+            return None
+        
+        return payload.get("job_id"), payload.get("image_names")
+    
+    except Exception:
+        return None
+
+
 @router.get("/buffer-media/{token}/{image_name}")
 def get_buffer_media(token: str, image_name: str):
     """Public endpoint to serve images via Buffer media token.
     
     This endpoint is NOT protected by authentication and is used by Buffer
-    to fetch images for posting. The token is cryptographically secure and
-    server-side validated to prevent unauthorized access.
+    to fetch images for posting. The token is cryptographically signed,
+    stateless, and works reliably across all Render worker processes.
     """
-    with _media_tokens_lock:
-        if token not in _media_tokens:
-            raise HTTPException(status_code=404, detail="Media token not found or expired.")
-        
-        token_data = _media_tokens[token]
-        job_id = token_data["job_id"]
-        allowed_images = token_data["image_names"]
+    # Verify and decode the signed token
+    token_data = verify_media_token(token)
+    if not token_data:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    job_id, allowed_images = token_data
     
     # Validate that the requested image is in the allowed list
     if image_name not in allowed_images:
-        raise HTTPException(status_code=403, detail="Image not allowed for this token.")
+        raise HTTPException(status_code=403, detail="Image not found.")
     
-    # Use the safe get_image_path to resolve and validate the path (prevents path traversal)
-    image_path = get_image_path(job_id, image_name)
+    # Safely resolve path with full traversal protection
+    image_path = resolve_safe_job_image(job_id, image_name)
 
-    if not image_path.exists():
-        raise HTTPException(status_code=404, detail="Снимката не е намерена.")
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+        filename=image_name
+    )
 
+
+@router.head("/buffer-media/{token}/{image_name}")
+def head_buffer_media(token: str, image_name: str):
+    """HEAD handler for Buffer media endpoint.
+    
+    Buffer may use HEAD to check image availability before fetching.
+    """
+    # Verify and decode the signed token
+    token_data = verify_media_token(token)
+    if not token_data:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    job_id, allowed_images = token_data
+    
+    # Validate that the requested image is in the allowed list
+    if image_name not in allowed_images:
+        raise HTTPException(status_code=403, detail="Image not found.")
+    
+    # Safely resolve path with full traversal protection
+    image_path = resolve_safe_job_image(job_id, image_name)
+
+    # Return 200 OK for HEAD (no body)
     return FileResponse(
         image_path,
         media_type="image/jpeg",
@@ -276,17 +461,6 @@ def get_buffer_media(token: str, image_name: str):
 # ============================================================================
 # Helper functions for Buffer GraphQL integration
 # ============================================================================
-
-def generate_media_token(job_id: str, image_names: list) -> str:
-    """Generate a cryptographically secure media token and store metadata server-side."""
-    token = secrets.token_urlsafe(32)
-    with _media_tokens_lock:
-        _media_tokens[token] = {
-            "job_id": job_id,
-            "image_names": image_names,
-        }
-    return token
-
 
 def build_buffer_media_url(request: Request, token: str, image_name: str) -> str:
     """Build the public URL for a Buffer media image using the media token."""
@@ -372,12 +546,13 @@ def publish_facebook(request: Request, body: dict):
 
         # Validate that all selected images exist
         for image_name in image_ids:
-            image_path = get_image_path(job_id, image_name)
-            if not image_path.exists() or not image_path.is_file():
-                raise HTTPException(status_code=400, detail=f"Image file not found or invalid: {image_name}")
+            try:
+                resolve_safe_job_image(job_id, image_name)
+            except HTTPException as e:
+                raise HTTPException(status_code=400, detail=f"Image validation failed: {e.detail}")
 
         # Generate a cryptographically secure media token for this job's images
-        media_token = generate_media_token(job_id, image_ids)
+        media_token = create_media_token(job_id, image_ids)
 
         # Build Buffer asset URLs and structure with correct image nesting
         assets = []
