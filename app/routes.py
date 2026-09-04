@@ -322,22 +322,30 @@ def get_media_secret() -> str:
     raise RuntimeError("BUFFER_MEDIA_SECRET or SESSION_SECRET must be set for media tokens")
 
 
-def create_media_token(job_id: str, image_names: list) -> str:
+def create_media_token(job_id: str, image_names: list, expires_at: int = None) -> str:
     """Create a cryptographically signed media token.
     
-    Token contains job_id, image_names, and expiry time (1 hour).
+    Token contains job_id, image_names, and expiry time.
     Format: base64url(payload) + "." + base64url(HMAC-SHA256 signature)
     
     Token is stateless and does not require process-local storage.
     Works reliably across all Render worker processes.
+    
+    Args:
+        job_id: Job ID
+        image_names: List of image filenames
+        expires_at: Unix timestamp for expiry. If None, defaults to 1 hour from now.
     """
     secret = get_media_secret()
     
-    # Payload: job_id, image_names, expiry (1 hour from now)
+    # Payload: job_id, image_names, expiry
+    if expires_at is None:
+        expires_at = int(time.time()) + 3600  # 1 hour from now
+    
     payload = {
         "job_id": job_id,
         "image_names": image_names,
-        "exp": int(time.time()) + 3600  # 1 hour expiry
+        "exp": expires_at
     }
     
     # JSON encode and base64url encode (no padding)
@@ -640,18 +648,13 @@ def publish_facebook(request: Request, body: dict):
 
 @router.post("/schedule-facebook")
 def schedule_facebook(request: Request, body: dict):
-    """Schedule selected images and message to configured Facebook Page for future publishing.
+    """Schedule selected images and message to Buffer for future publishing.
 
     Expects JSON body: { "job_id": "...", "image_ids": ["img1.jpg", ...], "message": "...", "scheduled_publish_time": <Unix timestamp> }
     """
-    import time
-    
     try:
-        page_id = os.environ.get("FACEBOOK_PAGE_ID")
-        page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN")
-
-        if not page_id or not page_token:
-            raise HTTPException(status_code=500, detail="Facebook credentials not configured on server.")
+        # Validate Buffer credentials are configured
+        api_key, channel_id = validate_buffer_credentials()
 
         job_id = body.get("job_id")
         image_ids = body.get("image_ids") or []
@@ -678,70 +681,118 @@ def schedule_facebook(request: Request, body: dict):
         if scheduled_timestamp > max_timestamp:
             raise HTTPException(status_code=400, detail="Scheduled time must be no more than 30 days in the future.")
 
-        # Upload each photo by uploading the local file (multipart/form-data)
-        photo_fb_ids = []
+        # Validate image limit (Buffer allows max 10 images per Facebook post)
+        if len(image_ids) > 10:
+            raise HTTPException(status_code=400, detail="Buffer allows maximum 10 images per Facebook post.")
 
+        # Validate job_id and that the job directory exists
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id is required.")
+
+        job_dir = GENERATED_DIR / job_id
+        if not job_dir.exists():
+            raise HTTPException(status_code=400, detail=f"Job directory not found: {job_id}")
+
+        # Validate that all selected images exist
         for image_name in image_ids:
-            # resolve local image path (must already be downloaded into GENERATED_DIR/job_id)
-            image_path = get_image_path(job_id, image_name)
-            if not image_path.exists() or not image_path.is_file():
-                raise HTTPException(status_code=400, detail=f"Image file not found or invalid: {image_name}")
-
-            photo_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/photos"
-
-            with open(image_path, "rb") as fh:
-                files = {"source": (image_name, fh, "image/jpeg")}
-                data = {"published": "false", "access_token": page_token}
-                resp = requests.post(photo_endpoint, files=files, data=data, timeout=60)
-
             try:
-                resp_json = resp.json()
-            except Exception:
-                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp.text}")
+                resolve_safe_job_image(job_id, image_name)
+            except HTTPException as e:
+                raise HTTPException(status_code=400, detail=f"Image validation failed: {e.detail}")
 
-            # Debug: print photo upload outcome
-            try:
-                print(f"facebook.photo_upload filename={image_name} status={resp.status_code} response={resp_json}", flush=True)
-            except Exception:
-                pass
+        # Generate a cryptographically secure media token for this job's images
+        # Token must be valid until at least scheduled_publish_time + 1 hour
+        token_expiry = scheduled_timestamp + 3600
+        media_token = create_media_token(job_id, image_ids, expires_at=token_expiry)
 
-            if resp.status_code != 200 or "id" not in resp_json:
-                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp_json}")
+        # Build Buffer asset URLs and structure with correct image nesting
+        assets = []
+        if image_ids:
+            for image_name in image_ids:
+                url = build_buffer_media_url(request, media_token, image_name)
+                assets.append({"image": {"url": url}})
 
-            photo_fb_ids.append(resp_json["id"])
+        # Convert Unix timestamp to ISO 8601 UTC (e.g., 2026-09-05T15:30:00Z)
+        from datetime import datetime, timezone
+        due_at = datetime.fromtimestamp(scheduled_timestamp, tz=timezone.utc).isoformat().replace('+00:00', 'Z')
 
-        # Create feed post with attached_media if any, and scheduled_publish_time
-        feed_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/feed"
-        data = {"message": message, "access_token": page_token, "published": "false", "scheduled_publish_time": scheduled_timestamp}
+        # Build variables for GraphQL mutation (safe transport of arbitrary text)
+        variables = {
+            "input": {
+                "text": message,
+                "channelId": channel_id,
+                "schedulingType": "automatic",
+                "mode": "customScheduled",
+                "dueAt": due_at,
+                "metadata": {
+                    "facebook": {
+                        "type": "post"
+                    }
+                }
+            }
+        }
+        
+        # Only include assets if there are images
+        if assets:
+            variables["input"]["assets"] = assets
 
-        if photo_fb_ids:
-            attached = [{"media_fbid": fid} for fid in photo_fb_ids]
-            # Debug: print attached_media structure (do not include tokens)
-            try:
-                print(f"facebook.attached_media {attached}", flush=True)
-            except Exception:
-                pass
-            data["attached_media"] = json.dumps(attached)
+        # GraphQL mutation with parameterized input and union response fragments
+        mutation = '''
+        mutation CreatePost($input: CreatePostInput!) {
+            createPost(input: $input) {
+                ... on PostActionSuccess {
+                    post {
+                        id
+                        text
+                        dueAt
+                    }
+                }
+                ... on MutationError {
+                    message
+                }
+            }
+        }
+        '''
 
-        resp = requests.post(feed_endpoint, data=data, timeout=30)
-        try:
-            resp_json = resp.json()
-        except Exception:
-            raise HTTPException(status_code=502, detail=f"Facebook feed scheduling failed: {resp.text}")
+        # Call Buffer GraphQL API with variables
+        gql_response = call_buffer_graphql(api_key, mutation, variables)
 
-        # Debug: print feed response (status and JSON)
-        try:
-            print(f"facebook.feed_schedule status={resp.status_code} response={resp_json}", flush=True)
-        except Exception:
-            pass
+        # Check for GraphQL parsing/execution errors
+        if "errors" in gql_response and gql_response["errors"]:
+            errors = gql_response["errors"]
+            error_msg = "; ".join([str(e.get("message", str(e))) for e in errors])
+            raise HTTPException(status_code=502, detail=f"Buffer GraphQL error: {error_msg}")
 
-        if resp.status_code != 200 or "id" not in resp_json:
-            raise HTTPException(status_code=502, detail=f"Facebook feed scheduling failed: {resp_json}")
+        # Extract response data
+        if "data" not in gql_response or not gql_response["data"]:
+            raise HTTPException(status_code=502, detail="Buffer API returned no data.")
 
-        # Return success with scheduled post ID (no URL for scheduled posts)
-        post_full_id = resp_json.get("id")
+        create_post_result = gql_response["data"].get("createPost")
+        if not create_post_result:
+            raise HTTPException(status_code=502, detail="Buffer API response missing createPost field.")
 
-        return {"success": True, "scheduled_post_id": post_full_id}
+        # Handle MutationError fragment
+        if "message" in create_post_result:
+            error_message = create_post_result.get("message", "Unknown error")
+            raise HTTPException(status_code=502, detail=f"Buffer API error: {error_message}")
+
+        # Extract post ID from PostActionSuccess fragment
+        post = create_post_result.get("post")
+        if not post:
+            raise HTTPException(status_code=502, detail="Buffer API response missing post object.")
+
+        post_id = post.get("id")
+        if not post_id:
+            raise HTTPException(status_code=502, detail="Buffer API response missing post ID.")
+
+        # Return response compatible with frontend
+        return {
+            "success": True,
+            "post_id": post_id,
+            "scheduled_post_id": post_id,
+            "post_url": None,
+            "scheduled_publish_time": scheduled_publish_time
+        }
 
     except HTTPException:
         raise
