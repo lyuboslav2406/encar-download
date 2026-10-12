@@ -681,10 +681,6 @@
     }
 
     /* Batch generation job cards */
-    .batch-input-section {
-      margin-bottom: 24px;
-    }
-
     .batch-jobs-container {
       display: grid;
       gap: 12px;
@@ -778,7 +774,7 @@
         <label class="field-label" for="sharedUrlInput">Encar URL</label>
         <input id="sharedUrlInput" placeholder="Paste Encar link here..." />
       </div>
-      <button onclick="setSharedUrl()">Set URL</button>
+      <button id="urlActionBtn" onclick="handleUrlAction()">Add Car</button>
       <p id="urlStatus" class="status-text"></p>
     </section>
 
@@ -794,14 +790,7 @@
       <section class="card" id="postCard">
         <div class="card-title">🚗 Facebook Post Generator</div>
 
-        <!-- Batch URL input section -->
-        <div class="batch-input-section" id="batchInputSection">
-          <p class="card-note">Add up to 7 cars. Each URL starts processing immediately.</p>
-          <label class="field-label" for="batchUrlsInput">Encar URL</label>
-          <input id="batchUrlsInput" placeholder="Paste a single Encar link here..." />
-          <button id="batchGenerateBtn" onclick="submitBatchGeneration()">Add Car</button>
-          <p id="batchInputStatus" class="status-text"></p>
-        </div>
+        <p class="card-note">Add up to 7 cars using the URL field above. Each URL starts processing immediately.</p>
 
         <!-- Job dashboard section (shown after submission) -->
         <div class="batch-jobs-container" id="batchJobsContainer" style="display: none;">
@@ -908,6 +897,7 @@
     let dismissedJobIds = new Set();
     let galleryRequestToken = 0;
     const MAX_ACTIVE_JOBS = 7;
+    let activeMode = 'post';
 
     function getActiveJob() {
       if (!currentJobId) return null;
@@ -1030,9 +1020,9 @@
     // ========================================================================
 
     async function submitBatchGeneration() {
-      const input = document.getElementById('batchUrlsInput');
-      const statusEl = document.getElementById('batchInputStatus');
-      const btn = document.getElementById('batchGenerateBtn');
+      const input = document.getElementById('sharedUrlInput');
+      const statusEl = document.getElementById('urlStatus');
+      const btn = document.getElementById('urlActionBtn');
 
       statusEl.textContent = '';
 
@@ -1074,7 +1064,7 @@
           selectionInitialized: false
         };
 
-        input.value = '';
+        sharedUrl = url;
         if (!batchPollingInterval) {
           batchPollingInterval = setInterval(pollBatchStatus, 2000);
         }
@@ -1666,6 +1656,14 @@
       status.textContent = "URL set. Use the desired mode.";
     }
 
+    function handleUrlAction() {
+      if (activeMode === 'post') {
+        submitBatchGeneration();
+      } else {
+        setSharedUrl();
+      }
+    }
+
     async function openCarReport() {
       let url = document.getElementById("sharedUrlInput").value.trim();
       const status = document.getElementById("reportStatus");
@@ -1787,6 +1785,10 @@
     }
 
     function setMode(mode) {
+      activeMode = mode;
+      const urlActionBtn = document.getElementById('urlActionBtn');
+      if (urlActionBtn) urlActionBtn.textContent = mode === 'post' ? 'Add Car' : 'Set URL';
+
       const postCard = document.getElementById('postCard');
       const reportCard = document.getElementById('reportCard');
       const insuranceCard = document.getElementById('insuranceCard');
