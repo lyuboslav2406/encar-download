@@ -1319,7 +1319,6 @@
         const orderedIds = defaultAllSelected
           ? allIds.slice()
           : [...(savedSelection || [])].filter(id => allIds.includes(id)).concat(allIds.filter(id => !selectedSet.has(id)));
-        const selected = [];
 
         if (!window.__dragState) {
             window.__dragState = {
@@ -1341,7 +1340,6 @@
           item.dataset.url = url;
 
           if (selectedSet.has(id)) {
-            selected.push(id);
           } else {
             item.classList.add('unselected');
           }
@@ -1501,26 +1499,8 @@
     function toggleSelection(item) {
       const id = item.dataset.id;
       if (!id) return;
-
-      const targetJob = getActiveJob();
-      const currentSelection = targetJob && Array.isArray(targetJob.selectedImageIds) ? targetJob.selectedImageIds.slice() : (window.selectedImageIds || []);
-      const idx = currentSelection.indexOf(id);
-      if (idx === -1) {
-        item.classList.remove('unselected');
-        currentSelection.push(id);
-      } else {
-        item.classList.add('unselected');
-        currentSelection.splice(idx, 1);
-      }
-
-      if (targetJob) {
-        targetJob.selectedImageIds = currentSelection;
-        targetJob.selectionInitialized = true;
-      }
-      window.selectedImageIds = currentSelection.slice();
-
-      const total = document.querySelectorAll('.image-item').length;
-      updateCounter(window.selectedImageIds.length, total);
+      item.classList.toggle('unselected');
+      syncSelectedOrder();
     }
 
     function syncSelectedOrder() {
@@ -1845,7 +1825,7 @@
     }
 
     function validateScheduledTime(datetimeString) {
-      // Validate: must be at least 10 minutes in future, no more than 30 days in future
+      // Validate: must be at least 10 minutes in future, no more than 7 days in future
       if (!datetimeString) {
         return { valid: false, error: 'Please select a date and time.' };
       }
@@ -1858,14 +1838,14 @@
 
       const now = new Date();
       const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
-      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       if (selectedDate < tenMinutesFromNow) {
         return { valid: false, error: 'Scheduled time must be at least 10 minutes in the future.' };
       }
 
-      if (selectedDate > thirtyDaysFromNow) {
-        return { valid: false, error: 'Scheduled time must be no more than 30 days in the future.' };
+      if (selectedDate > sevenDaysFromNow) {
+        return { valid: false, error: 'Scheduled time must be no more than 7 days in the future.' };
       }
 
       return { valid: true };
