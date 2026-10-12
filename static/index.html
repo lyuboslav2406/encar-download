@@ -1341,6 +1341,11 @@
           item.dataset.url = url;
 
           if (selectedSet.has(id)) {
+            selected.push(id);
+          } else {
+            item.classList.add('unselected');
+          }
+
           const img = document.createElement('img');
           img.src = url;
           img.loading = 'lazy';
