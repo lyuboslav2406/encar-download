@@ -906,10 +906,13 @@ def batch_generate(request: Request, body: dict):
     """
     try:
         urls = body.get("urls", [])
-        
+
         if not urls or not isinstance(urls, list):
             raise HTTPException(status_code=400, detail="At least one URL is required in 'urls' list")
-        
+
+        if len(urls) > 7:
+            raise HTTPException(status_code=400, detail="You can process up to 7 active vehicles at a time.")
+
         job_ids = []
         for url in urls:
             if not url or not isinstance(url, str):
