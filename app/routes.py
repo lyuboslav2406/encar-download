@@ -10,10 +10,13 @@ from .models import GenerateRequest
 from .report_service import build_insurance_url, build_report_url, extract_carid_from_url, extract_report_carid
 import os
 import json
+import base64
+import hmac
+import hashlib
+import time
 import logging
 import threading
 import uuid
-import secrets
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -25,11 +28,10 @@ logger = logging.getLogger("encar.facebook")
 router = APIRouter()
 
 # ============================================================================
-# Media token storage for Buffer public image URLs
+# Stateless signed tokens for Buffer public image URLs
 # ============================================================================
-# Maps token -> {job_id, image_names (list), expires_at}
-_media_tokens_lock = threading.Lock()
-_media_tokens: Dict[str, dict] = {}
+# Tokens are cryptographically signed and contain job_id + image_names + expiry.
+# No process-local storage needed; works reliably across Render worker processes.
 
 # ============================================================================
 # Background job processing for concurrent Encar generation
@@ -240,32 +242,223 @@ def get_photos(job_id: str, request: Request):
     }
 
 
+# ============================================================================
+# Stateless signed token functions for Buffer media URLs
+# ============================================================================
+
+def resolve_safe_job_image(job_id: str, image_name: str) -> Path:
+    """Safely resolve job image path with full traversal protection.
+    
+    Requirements:
+    - image_name must be a simple filename only (no path separators)
+    - image_name must have .jpg suffix
+    - resolved job directory must be within GENERATED_DIR
+    - resolved image path must be within the job directory
+    - image file must exist and be a regular file
+    
+    Args:
+        job_id: Job ID (directory name)
+        image_name: Image filename
+    
+    Returns: Absolute Path to the image file
+    Raises: HTTPException if validation fails
+    """
+    # Resolve GENERATED_DIR to absolute path
+    generated_dir = GENERATED_DIR.resolve()
+    
+    # Validate job_id is a simple directory name (basic UUID format)
+    # Resolve job directory
+    job_dir = (generated_dir / job_id).resolve()
+    
+    # Ensure job directory is within GENERATED_DIR
+    try:
+        job_dir.relative_to(generated_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID.")
+    
+    # Validate image_name is a simple filename only
+    # - Must not contain path separators
+    # - Must match Path.name (no directory components)
+    if "/" in image_name or "\\" in image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    if Path(image_name).name != image_name:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Require .jpg suffix
+    if not image_name.lower().endswith(".jpg"):
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Resolve final image path
+    image_path = (job_dir / image_name).resolve()
+    
+    # Ensure image path is within the job directory
+    try:
+        image_path.relative_to(job_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid image name.")
+    
+    # Require file to exist and be a regular file
+    if not image_path.exists() or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    return image_path
+
+
+def get_media_secret() -> str:
+    """Get the secret for signing media tokens.
+    
+    Prefer BUFFER_MEDIA_SECRET if set, else use SESSION_SECRET.
+    One of these must be configured.
+    """
+    secret = os.environ.get("BUFFER_MEDIA_SECRET")
+    if secret:
+        return secret
+    
+    secret = os.environ.get("SESSION_SECRET")
+    if secret:
+        return secret
+    
+    raise RuntimeError("BUFFER_MEDIA_SECRET or SESSION_SECRET must be set for media tokens")
+
+
+def create_media_token(job_id: str, image_names: list, expires_at: int = None) -> str:
+    """Create a cryptographically signed media token.
+    
+    Token contains job_id, image_names, and expiry time.
+    Format: base64url(payload) + "." + base64url(HMAC-SHA256 signature)
+    
+    Token is stateless and does not require process-local storage.
+    Works reliably across all Render worker processes.
+    
+    Args:
+        job_id: Job ID
+        image_names: List of image filenames
+        expires_at: Unix timestamp for expiry. If None, defaults to 1 hour from now.
+    """
+    secret = get_media_secret()
+    
+    # Payload: job_id, image_names, expiry
+    if expires_at is None:
+        expires_at = int(time.time()) + 3600  # 1 hour from now
+    
+    payload = {
+        "job_id": job_id,
+        "image_names": image_names,
+        "exp": expires_at
+    }
+    
+    # JSON encode and base64url encode (no padding)
+    payload_json = json.dumps(payload, separators=(',', ':'))
+    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).rstrip(b'=').decode()
+    
+    # Sign with HMAC-SHA256
+    signature = hmac.new(
+        secret.encode(),
+        payload_b64.encode(),
+        hashlib.sha256
+    ).digest()
+    signature_b64 = base64.urlsafe_b64encode(signature).rstrip(b'=').decode()
+    
+    # Return token
+    return f"{payload_b64}.{signature_b64}"
+
+
+def verify_media_token(token: str) -> Optional[tuple]:
+    """Verify a signed media token and extract job_id and image_names.
+    
+    Args:
+        token: Signed token string
+    
+    Returns: (job_id, image_names) tuple if valid, None otherwise
+    """
+    try:
+        secret = get_media_secret()
+        
+        # Split token into payload and signature
+        parts = token.split(".", 1)
+        if len(parts) != 2:
+            return None
+        
+        payload_b64, signature_b64 = parts
+        
+        # Add padding back if needed for base64 decoding
+        payload_json = base64.urlsafe_b64decode(payload_b64 + "==")
+        signature = base64.urlsafe_b64decode(signature_b64 + "==")
+        
+        # Verify signature using hmac.compare_digest (constant-time comparison)
+        expected_signature = hmac.new(
+            secret.encode(),
+            payload_b64.encode(),
+            hashlib.sha256
+        ).digest()
+        
+        if not hmac.compare_digest(signature, expected_signature):
+            return None
+        
+        # Decode payload
+        payload = json.loads(payload_json)
+        
+        # Check expiry
+        if int(time.time()) > payload.get("exp", 0):
+            return None
+        
+        return payload.get("job_id"), payload.get("image_names")
+    
+    except Exception:
+        return None
+
+
 @router.get("/buffer-media/{token}/{image_name}")
 def get_buffer_media(token: str, image_name: str):
     """Public endpoint to serve images via Buffer media token.
     
     This endpoint is NOT protected by authentication and is used by Buffer
-    to fetch images for posting. The token is cryptographically secure and
-    server-side validated to prevent unauthorized access.
+    to fetch images for posting. The token is cryptographically signed,
+    stateless, and works reliably across all Render worker processes.
     """
-    with _media_tokens_lock:
-        if token not in _media_tokens:
-            raise HTTPException(status_code=404, detail="Media token not found or expired.")
-        
-        token_data = _media_tokens[token]
-        job_id = token_data["job_id"]
-        allowed_images = token_data["image_names"]
+    # Verify and decode the signed token
+    token_data = verify_media_token(token)
+    if not token_data:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    job_id, allowed_images = token_data
     
     # Validate that the requested image is in the allowed list
     if image_name not in allowed_images:
-        raise HTTPException(status_code=403, detail="Image not allowed for this token.")
+        raise HTTPException(status_code=403, detail="Image not found.")
     
-    # Use the safe get_image_path to resolve and validate the path (prevents path traversal)
-    image_path = get_image_path(job_id, image_name)
+    # Safely resolve path with full traversal protection
+    image_path = resolve_safe_job_image(job_id, image_name)
 
-    if not image_path.exists():
-        raise HTTPException(status_code=404, detail="Снимката не е намерена.")
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+        filename=image_name
+    )
 
+
+@router.head("/buffer-media/{token}/{image_name}")
+def head_buffer_media(token: str, image_name: str):
+    """HEAD handler for Buffer media endpoint.
+    
+    Buffer may use HEAD to check image availability before fetching.
+    """
+    # Verify and decode the signed token
+    token_data = verify_media_token(token)
+    if not token_data:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    
+    job_id, allowed_images = token_data
+    
+    # Validate that the requested image is in the allowed list
+    if image_name not in allowed_images:
+        raise HTTPException(status_code=403, detail="Image not found.")
+    
+    # Safely resolve path with full traversal protection
+    image_path = resolve_safe_job_image(job_id, image_name)
+
+    # Return 200 OK for HEAD (no body)
     return FileResponse(
         image_path,
         media_type="image/jpeg",
@@ -276,17 +469,6 @@ def get_buffer_media(token: str, image_name: str):
 # ============================================================================
 # Helper functions for Buffer GraphQL integration
 # ============================================================================
-
-def generate_media_token(job_id: str, image_names: list) -> str:
-    """Generate a cryptographically secure media token and store metadata server-side."""
-    token = secrets.token_urlsafe(32)
-    with _media_tokens_lock:
-        _media_tokens[token] = {
-            "job_id": job_id,
-            "image_names": image_names,
-        }
-    return token
-
 
 def build_buffer_media_url(request: Request, token: str, image_name: str) -> str:
     """Build the public URL for a Buffer media image using the media token."""
@@ -345,6 +527,105 @@ def call_buffer_graphql(api_key: str, query: str, variables: dict = None) -> dic
     return data
 
 
+# ============================================================================
+# Helper functions for Cloudflare R2 storage (scheduled posts)
+# ============================================================================
+
+def upload_scheduled_images_to_r2(job_id: str, image_ids: list) -> list:
+    """Upload selected local images to Cloudflare R2 and return public URLs.
+    
+    Args:
+        job_id: Job ID
+        image_ids: List of image filenames to upload
+    
+    Returns: List of public R2 URLs in exact same order as image_ids
+    Raises: HTTPException if validation or upload fails
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+    
+    # Validate R2 environment variables
+    r2_endpoint = os.environ.get("R2_ENDPOINT_URL")
+    r2_access_key = os.environ.get("R2_ACCESS_KEY_ID")
+    r2_secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+    r2_bucket = os.environ.get("R2_BUCKET_NAME")
+    r2_public_url = os.environ.get("R2_PUBLIC_URL")
+    
+    if not all([r2_endpoint, r2_access_key, r2_secret_key, r2_bucket, r2_public_url]):
+        raise HTTPException(
+            status_code=500,
+            detail="R2 storage not configured (missing R2_* environment variables)."
+        )
+    
+    # Create S3-compatible client for R2
+    try:
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=r2_endpoint,
+            aws_access_key_id=r2_access_key,
+            aws_secret_access_key=r2_secret_key,
+            region_name="auto"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to initialize R2 client: {str(e)}")
+    
+    # Track uploaded object keys for cleanup on error
+    uploaded_keys = []
+    public_urls = []
+    
+    try:
+        for image_name in image_ids:
+            # Safely resolve local image path
+            local_path = resolve_safe_job_image(job_id, image_name)
+            
+            # Generate unique object key to avoid collisions
+            # Format: scheduled/{job_id}/{uuid-prefix}/{image_name}
+            import uuid
+            unique_prefix = str(uuid.uuid4())[:8]
+            object_key = f"scheduled/{job_id}/{unique_prefix}/{image_name}"
+            
+            # Upload to R2
+            try:
+                with open(local_path, "rb") as fh:
+                    s3_client.put_object(
+                        Bucket=r2_bucket,
+                        Key=object_key,
+                        Body=fh.read(),
+                        ContentType="image/jpeg"
+                    )
+            except ClientError as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"R2 upload failed for {image_name}: {str(e)}"
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"R2 upload error for {image_name}: {str(e)}"
+                )
+            
+            uploaded_keys.append(object_key)
+            
+            # Build public URL (remove trailing slash from R2_PUBLIC_URL, then append object_key)
+            public_url = f"{r2_public_url.rstrip('/')}/{object_key}"
+            public_urls.append(public_url)
+        
+        return public_urls
+    
+    except HTTPException:
+        # Attempt cleanup of uploaded objects
+        try:
+            for key in uploaded_keys:
+                try:
+                    s3_client.delete_object(Bucket=r2_bucket, Key=key)
+                except Exception:
+                    pass  # Best-effort cleanup, do not hide original error
+        except Exception:
+            pass
+        
+        raise
+
+
 @router.post("/publish-facebook")
 def publish_facebook(request: Request, body: dict):
     """Publish selected images and message to Buffer (now, via shareNow mode).
@@ -372,12 +653,13 @@ def publish_facebook(request: Request, body: dict):
 
         # Validate that all selected images exist
         for image_name in image_ids:
-            image_path = get_image_path(job_id, image_name)
-            if not image_path.exists() or not image_path.is_file():
-                raise HTTPException(status_code=400, detail=f"Image file not found or invalid: {image_name}")
+            try:
+                resolve_safe_job_image(job_id, image_name)
+            except HTTPException as e:
+                raise HTTPException(status_code=400, detail=f"Image validation failed: {e.detail}")
 
         # Generate a cryptographically secure media token for this job's images
-        media_token = generate_media_token(job_id, image_ids)
+        media_token = create_media_token(job_id, image_ids)
 
         # Build Buffer asset URLs and structure with correct image nesting
         assets = []
@@ -465,18 +747,13 @@ def publish_facebook(request: Request, body: dict):
 
 @router.post("/schedule-facebook")
 def schedule_facebook(request: Request, body: dict):
-    """Schedule selected images and message to configured Facebook Page for future publishing.
+    """Schedule selected images and message to Buffer for future publishing.
 
     Expects JSON body: { "job_id": "...", "image_ids": ["img1.jpg", ...], "message": "...", "scheduled_publish_time": <Unix timestamp> }
     """
-    import time
-    
     try:
-        page_id = os.environ.get("FACEBOOK_PAGE_ID")
-        page_token = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN")
-
-        if not page_id or not page_token:
-            raise HTTPException(status_code=500, detail="Facebook credentials not configured on server.")
+        # Validate Buffer credentials are configured
+        api_key, channel_id = validate_buffer_credentials()
 
         job_id = body.get("job_id")
         image_ids = body.get("image_ids") or []
@@ -503,70 +780,116 @@ def schedule_facebook(request: Request, body: dict):
         if scheduled_timestamp > max_timestamp:
             raise HTTPException(status_code=400, detail="Scheduled time must be no more than 30 days in the future.")
 
-        # Upload each photo by uploading the local file (multipart/form-data)
-        photo_fb_ids = []
+        # Validate image limit (Buffer allows max 10 images per Facebook post)
+        if len(image_ids) > 10:
+            raise HTTPException(status_code=400, detail="Buffer allows maximum 10 images per Facebook post.")
 
+        # Validate job_id and that the job directory exists
+        if not job_id:
+            raise HTTPException(status_code=400, detail="job_id is required.")
+
+        job_dir = GENERATED_DIR / job_id
+        if not job_dir.exists():
+            raise HTTPException(status_code=400, detail=f"Job directory not found: {job_id}")
+
+        # Validate that all selected images exist
         for image_name in image_ids:
-            # resolve local image path (must already be downloaded into GENERATED_DIR/job_id)
-            image_path = get_image_path(job_id, image_name)
-            if not image_path.exists() or not image_path.is_file():
-                raise HTTPException(status_code=400, detail=f"Image file not found or invalid: {image_name}")
-
-            photo_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/photos"
-
-            with open(image_path, "rb") as fh:
-                files = {"source": (image_name, fh, "image/jpeg")}
-                data = {"published": "false", "access_token": page_token}
-                resp = requests.post(photo_endpoint, files=files, data=data, timeout=60)
-
             try:
-                resp_json = resp.json()
-            except Exception:
-                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp.text}")
+                resolve_safe_job_image(job_id, image_name)
+            except HTTPException as e:
+                raise HTTPException(status_code=400, detail=f"Image validation failed: {e.detail}")
 
-            # Debug: print photo upload outcome
-            try:
-                print(f"facebook.photo_upload filename={image_name} status={resp.status_code} response={resp_json}", flush=True)
-            except Exception:
-                pass
+        # Upload images to R2 (if any) and build asset URLs
+        assets = []
+        if image_ids:
+            # Upload to R2 and get public URLs
+            r2_public_urls = upload_scheduled_images_to_r2(job_id, image_ids)
+            
+            # Build Buffer asset URLs with R2 public URLs (preserving order)
+            for r2_url in r2_public_urls:
+                assets.append({"image": {"url": r2_url}})
 
-            if resp.status_code != 200 or "id" not in resp_json:
-                raise HTTPException(status_code=502, detail=f"Facebook photo upload failed for {image_name}: {resp_json}")
+        # Convert Unix timestamp to ISO 8601 UTC (e.g., 2026-09-05T15:30:00Z)
+        from datetime import datetime, timezone
+        due_at = datetime.fromtimestamp(scheduled_timestamp, tz=timezone.utc).isoformat().replace('+00:00', 'Z')
 
-            photo_fb_ids.append(resp_json["id"])
+        # Build variables for GraphQL mutation (safe transport of arbitrary text)
+        variables = {
+            "input": {
+                "text": message,
+                "channelId": channel_id,
+                "schedulingType": "automatic",
+                "mode": "customScheduled",
+                "dueAt": due_at,
+                "metadata": {
+                    "facebook": {
+                        "type": "post"
+                    }
+                }
+            }
+        }
+        
+        # Only include assets if there are images
+        if assets:
+            variables["input"]["assets"] = assets
 
-        # Create feed post with attached_media if any, and scheduled_publish_time
-        feed_endpoint = f"https://graph.facebook.com/v16.0/{page_id}/feed"
-        data = {"message": message, "access_token": page_token, "published": "false", "scheduled_publish_time": scheduled_timestamp}
+        # GraphQL mutation with parameterized input and union response fragments
+        mutation = '''
+        mutation CreatePost($input: CreatePostInput!) {
+            createPost(input: $input) {
+                ... on PostActionSuccess {
+                    post {
+                        id
+                        text
+                        dueAt
+                    }
+                }
+                ... on MutationError {
+                    message
+                }
+            }
+        }
+        '''
 
-        if photo_fb_ids:
-            attached = [{"media_fbid": fid} for fid in photo_fb_ids]
-            # Debug: print attached_media structure (do not include tokens)
-            try:
-                print(f"facebook.attached_media {attached}", flush=True)
-            except Exception:
-                pass
-            data["attached_media"] = json.dumps(attached)
+        # Call Buffer GraphQL API with variables
+        gql_response = call_buffer_graphql(api_key, mutation, variables)
 
-        resp = requests.post(feed_endpoint, data=data, timeout=30)
-        try:
-            resp_json = resp.json()
-        except Exception:
-            raise HTTPException(status_code=502, detail=f"Facebook feed scheduling failed: {resp.text}")
+        # Check for GraphQL parsing/execution errors
+        if "errors" in gql_response and gql_response["errors"]:
+            errors = gql_response["errors"]
+            error_msg = "; ".join([str(e.get("message", str(e))) for e in errors])
+            raise HTTPException(status_code=502, detail=f"Buffer GraphQL error: {error_msg}")
 
-        # Debug: print feed response (status and JSON)
-        try:
-            print(f"facebook.feed_schedule status={resp.status_code} response={resp_json}", flush=True)
-        except Exception:
-            pass
+        # Extract response data
+        if "data" not in gql_response or not gql_response["data"]:
+            raise HTTPException(status_code=502, detail="Buffer API returned no data.")
 
-        if resp.status_code != 200 or "id" not in resp_json:
-            raise HTTPException(status_code=502, detail=f"Facebook feed scheduling failed: {resp_json}")
+        create_post_result = gql_response["data"].get("createPost")
+        if not create_post_result:
+            raise HTTPException(status_code=502, detail="Buffer API response missing createPost field.")
 
-        # Return success with scheduled post ID (no URL for scheduled posts)
-        post_full_id = resp_json.get("id")
+        # Handle MutationError fragment
+        if "message" in create_post_result:
+            error_message = create_post_result.get("message", "Unknown error")
+            raise HTTPException(status_code=502, detail=f"Buffer API error: {error_message}")
 
-        return {"success": True, "scheduled_post_id": post_full_id}
+        # Extract post ID from PostActionSuccess fragment
+        post = create_post_result.get("post")
+        if not post:
+            raise HTTPException(status_code=502, detail="Buffer API response missing post object.")
+
+        post_id = post.get("id")
+        if not post_id:
+            raise HTTPException(status_code=502, detail="Buffer API response missing post ID.")
+
+        # Return response compatible with frontend
+        return {
+            "success": True,
+            "post_id": post_id,
+            "scheduled_post_id": post_id,
+            "post_url": None,
+            "scheduled_publish_time": scheduled_publish_time
+        }
 
     except HTTPException:
         raise
@@ -583,10 +906,13 @@ def batch_generate(request: Request, body: dict):
     """
     try:
         urls = body.get("urls", [])
-        
+
         if not urls or not isinstance(urls, list):
             raise HTTPException(status_code=400, detail="At least one URL is required in 'urls' list")
-        
+
+        if len(urls) > 7:
+            raise HTTPException(status_code=400, detail="You can process up to 7 active vehicles at a time.")
+
         job_ids = []
         for url in urls:
             if not url or not isinstance(url, str):

@@ -796,10 +796,10 @@
 
         <!-- Batch URL input section -->
         <div class="batch-input-section" id="batchInputSection">
-          <p class="card-note">Enter up to 6 Encar URLs, one per line.</p>
-          <label class="field-label" for="batchUrlsInput">Encar URLs</label>
-          <textarea id="batchUrlsInput" placeholder="Paste Encar links here, one per line..." style="min-height: 120px;"></textarea>
-          <button id="batchGenerateBtn" onclick="submitBatchGeneration()">Generate</button>
+          <p class="card-note">Add up to 7 cars. Each URL starts processing immediately.</p>
+          <label class="field-label" for="batchUrlsInput">Encar URL</label>
+          <input id="batchUrlsInput" placeholder="Paste a single Encar link here..." />
+          <button id="batchGenerateBtn" onclick="submitBatchGeneration()">Add Car</button>
           <p id="batchInputStatus" class="status-text"></p>
         </div>
 
@@ -905,6 +905,28 @@
     let currentJobId = null;
     let currentBatchJobs = {};  // Map of job_id -> job data
     let batchPollingInterval = null;
+    let dismissedJobIds = new Set();
+    let galleryRequestToken = 0;
+    const MAX_ACTIVE_JOBS = 7;
+
+    function getActiveJob() {
+      if (!currentJobId) return null;
+      return currentBatchJobs[currentJobId] || null;
+    }
+
+    function saveCurrentJobDraft() {
+      const active = getActiveJob();
+      if (!active) return;
+      const facebookPost = document.getElementById('facebookPost');
+      if (facebookPost) active.editorText = facebookPost.value || '';
+
+      const selected = Array.from(document.querySelectorAll('.image-item')).reduce((acc, it) => {
+        if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
+        return acc;
+      }, []);
+      active.selectedImageIds = selected;
+      window.selectedImageIds = selected.slice();
+    }
 
     async function generate() {
       let url = document.getElementById("sharedUrlInput").value.trim();
@@ -1008,61 +1030,56 @@
     // ========================================================================
 
     async function submitBatchGeneration() {
-      const textarea = document.getElementById('batchUrlsInput');
+      const input = document.getElementById('batchUrlsInput');
       const statusEl = document.getElementById('batchInputStatus');
       const btn = document.getElementById('batchGenerateBtn');
-      
+
       statusEl.textContent = '';
-      
-      // Parse URLs
-      const text = textarea.value.trim();
-      if (!text) {
-        statusEl.textContent = 'Please enter at least one Encar URL.';
+
+      const url = input.value.trim();
+      if (!url) {
+        statusEl.textContent = 'Please enter an Encar URL.';
         return;
       }
-      
-      const lines = text.split('\n').map(line => line.trim()).filter(line => line);
-      
-      if (lines.length > 6) {
-        statusEl.textContent = 'You can process up to 6 vehicles at a time.';
+
+      if (Object.keys(currentBatchJobs).length >= MAX_ACTIVE_JOBS) {
+        statusEl.textContent = `You can have up to ${MAX_ACTIVE_JOBS} active cars.`;
         return;
       }
-      
-      // Submit to backend
+
       btn.disabled = true;
       btn.style.opacity = '0.6';
-      
+
       try {
         const resp = await fetch('/batch-generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: lines })
+          body: JSON.stringify({ urls: [url] })
         });
-        
+
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.detail || 'Batch generation failed');
-        
-        // Initialize batch state
-        currentBatchJobs = {};
-        for (const jobId of data.job_ids) {
-          currentBatchJobs[jobId] = {
-            job_id: jobId,
-            encar_url: '',
-            status: 'queued',
-            result: null,
-            error: null
-          };
+
+        const jobId = data.job_ids && data.job_ids[0];
+        if (!jobId) throw new Error('No job id returned from server');
+
+        currentBatchJobs[jobId] = {
+          job_id: jobId,
+          encar_url: url,
+          status: 'queued',
+          result: null,
+          error: null,
+          editorText: '',
+          selectedImageIds: [],
+          selectionInitialized: false
+        };
+
+        input.value = '';
+        if (!batchPollingInterval) {
+          batchPollingInterval = setInterval(pollBatchStatus, 2000);
         }
-        
-        // Show job dashboard
-        document.getElementById('batchInputSection').style.display = 'none';
         document.getElementById('batchJobsContainer').style.display = 'block';
-        
-        // Start polling
-        if (batchPollingInterval) clearInterval(batchPollingInterval);
-        batchPollingInterval = setInterval(pollBatchStatus, 2000);
-        
-        // Initial poll
+        renderJobCards();
         await pollBatchStatus();
       } catch (error) {
         statusEl.textContent = 'Error: ' + error.message;
@@ -1076,25 +1093,33 @@
       try {
         const resp = await fetch('/batch-status', { method: 'GET' });
         if (!resp.ok) return;
-        
+
         const data = await resp.json();
         const jobs = data.jobs || [];
-        
-        // Update only the jobs from current batch
+
         let allDone = true;
         for (const job of jobs) {
-          if (currentBatchJobs[job.job_id]) {
-            currentBatchJobs[job.job_id] = job;
-            if (job.status !== 'completed' && job.status !== 'failed') {
-              allDone = false;
-            }
+          if (dismissedJobIds.has(job.job_id)) continue;
+          if (!currentBatchJobs[job.job_id]) {
+            currentBatchJobs[job.job_id] = {
+              job_id: job.job_id,
+              encar_url: job.encar_url || '',
+              status: job.status || 'queued',
+              result: null,
+              error: job.error || null,
+              editorText: '',
+              selectedImageIds: [],
+              selectionInitialized: false
+            };
+          }
+          currentBatchJobs[job.job_id] = { ...currentBatchJobs[job.job_id], ...job };
+          if (job.status !== 'completed' && job.status !== 'failed') {
+            allDone = false;
           }
         }
-        
-        // Render job cards
+
         renderJobCards();
-        
-        // Stop polling if all jobs are done
+
         if (allDone && Object.keys(currentBatchJobs).length > 0) {
           if (batchPollingInterval) clearInterval(batchPollingInterval);
           batchPollingInterval = null;
@@ -1107,104 +1132,141 @@
     function renderJobCards() {
       const container = document.getElementById('batchJobsContainer');
       if (!container) return;
-      
+
       container.innerHTML = '';
-      
+
       const sortedJobs = Object.values(currentBatchJobs).sort((a, b) => {
-        // Sort by status: queued/processing first, then completed, then failed
         const order = { queued: 0, processing: 0, completed: 1, failed: 2 };
         return (order[a.status] || 3) - (order[b.status] || 3);
       });
-      
+
       for (let i = 0; i < sortedJobs.length; i++) {
         const job = sortedJobs[i];
         const vehicleNum = i + 1;
-        
+
         const card = document.createElement('div');
         card.className = 'job-card';
-        
+
         const left = document.createElement('div');
         left.className = 'job-card-left';
-        
+
         const info = document.createElement('div');
         info.className = 'job-card-info';
-        
+
         const urlEl = document.createElement('div');
         urlEl.className = 'job-card-url';
         urlEl.textContent = 'Vehicle ' + vehicleNum + ' — ' + truncateUrl(job.encar_url, 50);
-        
+
         const statusEl = document.createElement('div');
         statusEl.className = 'job-card-status ' + job.status;
-        
+
         let statusText = '';
         if (job.status === 'queued') statusText = 'Queued';
         else if (job.status === 'processing') statusText = 'Processing...';
         else if (job.status === 'completed') statusText = 'Ready';
         else if (job.status === 'failed') statusText = 'Failed';
-        
+
         statusEl.textContent = statusText;
-        
+
         if (job.status === 'queued' || job.status === 'processing') {
           const spinner = document.createElement('span');
           spinner.className = 'spinner';
           spinner.style.marginRight = '8px';
           statusEl.insertBefore(spinner, statusEl.firstChild);
         }
-        
+
         info.appendChild(urlEl);
         info.appendChild(statusEl);
-        
+
         if (job.error) {
           const errorEl = document.createElement('div');
           errorEl.className = 'job-card-error';
           errorEl.textContent = job.error;
           info.appendChild(errorEl);
         }
-        
+
         left.appendChild(info);
         card.appendChild(left);
-        
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '8px';
+        actions.style.alignItems = 'center';
+
         if (job.status === 'completed') {
           const btn = document.createElement('button');
           btn.className = 'job-card-button';
           btn.textContent = 'Open';
           btn.onclick = () => openJob(job.job_id);
-          card.appendChild(btn);
+          actions.appendChild(btn);
         }
-        
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'job-card-button';
+        removeBtn.textContent = 'Remove';
+        removeBtn.style.background = 'rgba(255,255,255,0.08)';
+        removeBtn.onclick = () => removeJob(job.job_id);
+        actions.appendChild(removeBtn);
+
+        card.appendChild(actions);
         container.appendChild(card);
       }
+    }
+
+    function removeJob(jobId) {
+      dismissedJobIds.add(jobId);
+      delete currentBatchJobs[jobId];
+      if (currentJobId === jobId) {
+        currentJobId = null;
+        document.getElementById('result').classList.add('hidden');
+        document.getElementById('facebookPost').value = '';
+        document.getElementById('priceSummary').textContent = '';
+        document.getElementById('imageGallery').innerHTML = '';
+        document.getElementById('publishStatus').textContent = '';
+      }
+      renderJobCards();
     }
 
     async function openJob(jobId) {
       const job = currentBatchJobs[jobId];
       if (!job || !job.result) return;
-      
+
+      saveCurrentJobDraft();
       currentJobId = jobId;
       const result = job.result;
-      
-      // Load result into editor
+
       document.getElementById('priceSummary').textContent = result.price_summary || '';
-      document.getElementById('facebookPost').value = result.facebook_post || '';
-      
+      const facebookPost = document.getElementById('facebookPost');
+      facebookPost.value = job.editorText || result.facebook_post || '';
+      facebookPost.oninput = saveCurrentJobDraft;
+
+      const photosUrl = window.location.origin + (result.photos_url || '');
+      latestPhotosUrl = photosUrl;
       latestZipUrl = result.zip_url || '';
-      latestPhotosUrl = window.location.origin + (result.photos_url || '');
-      
+      job.latestPhotosUrl = photosUrl;
+      job.latestZipUrl = result.zip_url || '';
+
       document.getElementById('result').classList.remove('hidden');
-      
-      // Load gallery
+
       if (result.images_count && result.images_count > 0) {
-        await loadGallery(latestPhotosUrl);
+        galleryRequestToken += 1;
+        const requestToken = galleryRequestToken;
+        await loadGallery(photosUrl, jobId, requestToken);
       } else {
+        galleryRequestToken += 1;
         document.getElementById('imageGallery').innerHTML = '';
+        window.selectedImageIds = [];
+        job.selectedImageIds = [];
+        job.selectionInitialized = true;
       }
     }
 
     function backToJobsDashboard() {
+      saveCurrentJobDraft();
       currentJobId = null;
       document.getElementById('result').classList.add('hidden');
       document.getElementById('batchJobsContainer').style.display = 'block';
-      
+
       if (batchPollingInterval) clearInterval(batchPollingInterval);
       batchPollingInterval = setInterval(pollBatchStatus, 2000);
     }
@@ -1220,36 +1282,28 @@
       }
     }
 
-    async function loadGallery(photosUrl) {
+    async function loadGallery(photosUrl, jobId = currentJobId, requestToken = galleryRequestToken) {
       const gallery = document.getElementById('imageGallery');
       const counter = document.getElementById('imageCounter');
       gallery.innerHTML = '';
+      const targetJob = jobId ? currentBatchJobs[jobId] : getActiveJob();
       if (!window.selectedImageIds) window.selectedImageIds = [];
+      if (targetJob && !Array.isArray(targetJob.selectedImageIds)) targetJob.selectedImageIds = [];
 
       try {
         const resp = await fetch(photosUrl);
+        if (requestToken !== galleryRequestToken) return;
         if (!resp.ok) {
           updateCounter(0, 0);
           return;
         }
         const json = await resp.json();
+        if (requestToken !== galleryRequestToken) return;
         const urls = json.image_urls || [];
-
-        const selected = [];
-
-        // Setup drag-and-drop state
-        if (!window.__dragState) {
-          window.__dragState = {
-            dragged: null,
-            isDragging: false,
-            pointerDragging: false,
-            pointerStartX: 0,
-            pointerStartY: 0,
-            pointerStartTime: 0,
-            dragThreshold: 10 // px
-          };
-        }
-
+        const savedSelection = targetJob ? (targetJob.selectionInitialized ? (targetJob.selectedImageIds || []) : undefined) : (window.selectedImageIds || []);
+        const defaultAllSelected = savedSelection === undefined;
+        const urlById = new Map();
+        const allIds = [];
         for (const url of urls) {
           let id = url;
           try {
@@ -1257,12 +1311,40 @@
           } catch (e) {
             // fallback to full url as id
           }
+          allIds.push(id);
+          urlById.set(id, url);
+        }
 
-          selected.push(id);
+        const selectedSet = new Set(defaultAllSelected ? allIds : (savedSelection || []));
+        const orderedIds = defaultAllSelected
+          ? allIds.slice()
+          : [...(savedSelection || [])].filter(id => allIds.includes(id)).concat(allIds.filter(id => !selectedSet.has(id)));
+        const selected = [];
 
+        if (!window.__dragState) {
+            window.__dragState = {
+              dragged: null,
+              isDragging: false,
+              pointerDragging: false,
+              pointerStartX: 0,
+              pointerStartY: 0,
+              pointerStartTime: 0,
+              dragThreshold: 10 // px
+            };
+        }
+
+        for (const id of orderedIds) {
+          const url = urlById.get(id);
           const item = document.createElement('div');
           item.className = 'image-item';
           item.dataset.id = id;
+          item.dataset.url = url;
+
+          if (selectedSet.has(id)) {
+            selected.push(id);
+          } else {
+            item.classList.add('unselected');
+          }
 
           const img = document.createElement('img');
           img.src = url;
@@ -1403,9 +1485,13 @@
           gallery.appendChild(item);
         }
 
-        // all selected by default, keep order
-        window.selectedImageIds = selected.slice();
-        updateCounter(window.selectedImageIds.length, selected.length);
+        const finalSelected = Array.from(gallery.querySelectorAll('.image-item')).filter(item => !item.classList.contains('unselected')).map(item => item.dataset.id).filter(Boolean);
+        window.selectedImageIds = finalSelected.slice();
+        if (targetJob) {
+          targetJob.selectedImageIds = finalSelected.slice();
+          targetJob.selectionInitialized = true;
+        }
+        updateCounter(window.selectedImageIds.length, urls.length);
       } catch (e) {
         console.warn('Error fetching photos:', e);
         updateCounter(0, 0);
@@ -1416,30 +1502,40 @@
       const id = item.dataset.id;
       if (!id) return;
 
-      const idx = window.selectedImageIds.indexOf(id);
+      const targetJob = getActiveJob();
+      const currentSelection = targetJob && Array.isArray(targetJob.selectedImageIds) ? targetJob.selectedImageIds.slice() : (window.selectedImageIds || []);
+      const idx = currentSelection.indexOf(id);
       if (idx === -1) {
-        // currently unselected -> select
         item.classList.remove('unselected');
-        window.selectedImageIds.push(id);
+        currentSelection.push(id);
       } else {
-        // currently selected -> unselect
         item.classList.add('unselected');
-        window.selectedImageIds.splice(idx, 1);
+        currentSelection.splice(idx, 1);
       }
+
+      if (targetJob) {
+        targetJob.selectedImageIds = currentSelection;
+        targetJob.selectionInitialized = true;
+      }
+      window.selectedImageIds = currentSelection.slice();
 
       const total = document.querySelectorAll('.image-item').length;
       updateCounter(window.selectedImageIds.length, total);
     }
 
     function syncSelectedOrder() {
-      // rebuild window.selectedImageIds in DOM order, keeping only selected
+      const targetJob = getActiveJob();
       const items = Array.from(document.querySelectorAll('.image-item'));
       const ordered = [];
       for (const it of items) {
         if (!it.classList.contains('unselected') && it.dataset.id) ordered.push(it.dataset.id);
       }
       window.selectedImageIds = ordered.slice();
-      updateCounter(window.selectedImageIds.length, document.querySelectorAll('.image-item').length);
+      if (targetJob) {
+        targetJob.selectedImageIds = ordered.slice();
+        targetJob.selectionInitialized = true;
+      }
+      updateCounter(window.selectedImageIds.length, items.length);
     }
 
     function updateCounter(selectedCount, total) {
@@ -1457,11 +1553,14 @@
       const status = document.getElementById('publishStatus');
       status.textContent = '';
 
-      if (!latestPhotosUrl && (!window.selectedImageIds || window.selectedImageIds.length === 0)) {
-        // allow text-only posts, but ensure we still have message
+      const activeJob = getActiveJob();
+      if (!activeJob || !activeJob.result) {
+        status.textContent = 'Open a completed car job first.';
+        return;
       }
 
-      // interactive publishing UI
+      saveCurrentJobDraft();
+
       const origHtml = btn.innerHTML;
       btn.disabled = true;
       btn.style.opacity = '0.6';
@@ -1477,20 +1576,13 @@
       }, 1200);
 
       try {
-        // derive job_id from latestPhotosUrl which is like /photos/{job_id}
-        let job_id = '';
-        try {
-          const parts = latestPhotosUrl.split('/photos/');
-          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
-        } catch (e) {}
-
-        // derive publish order from current DOM order: include only selected items
+        const job_id = activeJob.job_id;
         const domItems = Array.from(document.querySelectorAll('.image-item'));
         const imageIds = domItems.reduce((acc, it) => {
           if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
           return acc;
         }, []);
-        const message = document.getElementById('facebookPost').value || '';
+        const message = document.getElementById('facebookPost').value || activeJob.editorText || '';
 
         const resp = await fetch('/publish-facebook', {
           method: 'POST',
@@ -1530,17 +1622,19 @@
     function downloadImages() {
       const status = document.getElementById('downloadStatus');
       status.textContent = '';
-      // derive job_id from latestPhotosUrl if available, else use latestZipUrl
-      let job_id = '';
-      if (latestPhotosUrl) {
-        try {
-          const parts = latestPhotosUrl.split('/photos/');
-          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
-        } catch (e) {}
+      const activeJob = getActiveJob();
+      let job_id = activeJob && activeJob.job_id ? activeJob.job_id : '';
+
+      if (!job_id) {
+        if (latestPhotosUrl) {
+          try {
+            const parts = latestPhotosUrl.split('/photos/');
+            job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
+          } catch (e) {}
+        }
       }
 
       if (!job_id && latestZipUrl) {
-        // try to extract job id from zip url (/download/{job_id})
         try {
           const parts = latestZipUrl.split('/download/');
           job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
@@ -1548,11 +1642,10 @@
       }
 
       if (!job_id) {
-        status.textContent = 'Generate a Facebook post first to prepare the images.';
+        status.textContent = 'Open a completed car job first to prepare the images.';
         return;
       }
 
-      // trigger download
       const downloadUrl = `/download/${job_id}`;
       window.location.href = downloadUrl;
     }
@@ -1787,20 +1880,25 @@
 
       errorDiv.textContent = '';
 
-      // Client-side validation
+      const activeJob = getActiveJob();
+      if (!activeJob || !activeJob.result) {
+        status.textContent = 'Open a completed car job first.';
+        return;
+      }
+
       const validation = validateScheduledTime(datetimeString);
       if (!validation.valid) {
         errorDiv.textContent = validation.error;
         return;
       }
 
-      // Convert local datetime to Unix timestamp
       const selectedDate = new Date(datetimeString);
       const unixTimestamp = Math.floor(selectedDate.getTime() / 1000);
 
-      // Close modal and show loading
       closeScheduleDialog();
-      
+
+      saveCurrentJobDraft();
+
       const origBtnHtml = confirmBtn.innerHTML;
       confirmBtn.disabled = true;
       confirmBtn.style.opacity = '0.6';
@@ -1817,20 +1915,13 @@
       }, 1200);
 
       try {
-        // derive job_id from latestPhotosUrl
-        let job_id = '';
-        try {
-          const parts = latestPhotosUrl.split('/photos/');
-          job_id = parts.length > 1 ? parts[1].replace(/\/$/, '') : '';
-        } catch (e) {}
-
-        // derive image ids from current DOM order (only selected)
+        const job_id = activeJob.job_id;
         const domItems = Array.from(document.querySelectorAll('.image-item'));
         const imageIds = domItems.reduce((acc, it) => {
           if (!it.classList.contains('unselected') && it.dataset.id) acc.push(it.dataset.id);
           return acc;
         }, []);
-        const message = document.getElementById('facebookPost').value || '';
+        const message = document.getElementById('facebookPost').value || activeJob.editorText || '';
 
         const resp = await fetch('/schedule-facebook', {
           method: 'POST',
