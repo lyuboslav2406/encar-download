@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 
 from .cleanup import cleanup_old_jobs
 from .config import GENERATED_DIR
@@ -21,9 +22,9 @@ from .scraper import (
 )
 
 
-def process_encar(url: str):
+def process_encar(url: str, job_id: Optional[str] = None):
     cleanup_old_jobs(max_age_hours=24, max_jobs=30)
-    job_id = str(uuid.uuid4())
+    job_id = job_id or str(uuid.uuid4())
     job_dir = GENERATED_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
