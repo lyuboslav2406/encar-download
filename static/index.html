@@ -894,7 +894,22 @@
     let currentJobId = null;
     let currentBatchJobs = {};  // Map of job_id -> job data
     let batchPollingInterval = null;
+    const DISMISSED_JOBS_STORAGE_KEY = 'encarExtractorDismissedJobIds';
+    function loadDismissedJobIds() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DISMISSED_JOBS_STORAGE_KEY) || '[]');
+        dismissedJobIds = new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : []);
+      } catch (e) {
+        dismissedJobIds = new Set();
+      }
+    }
+    function persistDismissedJobIds() {
+      try { localStorage.setItem(DISMISSED_JOBS_STORAGE_KEY, JSON.stringify([...dismissedJobIds])); }
+      catch (e) { console.warn('Could not persist removed jobs:', e); }
+    }
     let dismissedJobIds = new Set();
+    const pendingJobRemovals = new Map();
+    loadDismissedJobIds();
     let galleryRequestToken = 0;
     const MAX_ACTIVE_JOBS = 7;
     let activeMode = 'post';
@@ -928,7 +943,7 @@
       }
 
       if (!url) {
-        alert("Please paste an Encar link first.");
+        alert("Please paste an Encar or VinTrade link first.");
         return;
       }
 
@@ -1028,13 +1043,17 @@
 
       const url = input.value.trim();
       if (!url) {
-        statusEl.textContent = 'Please enter an Encar URL.';
+        statusEl.textContent = 'Please enter an Encar or VinTrade URL.';
         return;
       }
 
       if (Object.keys(currentBatchJobs).length >= MAX_ACTIVE_JOBS) {
         statusEl.textContent = `You can have up to ${MAX_ACTIVE_JOBS} active cars.`;
         return;
+      }
+
+      if (pendingJobRemovals.size) {
+        await Promise.all([...pendingJobRemovals.values()]);
       }
 
       btn.disabled = true;
@@ -1085,11 +1104,16 @@
         if (!resp.ok) return;
 
         const data = await resp.json();
+        loadDismissedJobIds();
         const jobs = data.jobs || [];
 
         let allDone = true;
         for (const job of jobs) {
-          if (dismissedJobIds.has(job.job_id)) continue;
+          if (dismissedJobIds.has(job.job_id)) {
+            allDone = false;
+            requestServerJobRemoval(job.job_id);
+            continue;
+          }
           if (!currentBatchJobs[job.job_id]) {
             currentBatchJobs[job.job_id] = {
               job_id: job.job_id,
@@ -1110,7 +1134,7 @@
 
         renderJobCards();
 
-        if (allDone && Object.keys(currentBatchJobs).length > 0) {
+        if (allDone) {
           if (batchPollingInterval) clearInterval(batchPollingInterval);
           batchPollingInterval = null;
         }
@@ -1145,7 +1169,7 @@
 
         const urlEl = document.createElement('div');
         urlEl.className = 'job-card-url';
-        urlEl.textContent = 'Vehicle ' + vehicleNum + ' — ' + truncateUrl(job.encar_url, 50);
+        urlEl.textContent = getJobVehicleLabel(job, vehicleNum);
 
         const statusEl = document.createElement('div');
         statusEl.className = 'job-card-status ' + job.status;
@@ -1203,10 +1227,32 @@
       }
     }
 
-    function removeJob(jobId) {
+    function getJobVehicleLabel(job, vehicleNum) {
+      const result = job.result || {};
+      const structured = result.vehicle || result.vehicle_data || result;
+      const make = typeof structured.make === 'string' ? structured.make.trim() : '';
+      const model = typeof structured.model === 'string' ? structured.model.trim() : '';
+      const trim = typeof structured.trim === 'string' ? structured.trim.trim() : '';
+      const year = structured.year || result.year;
+      if (make && model) {
+        const name = [make, model, trim].filter(Boolean).join(' ');
+        return year ? `${name} — ${year}` : name;
+      }
+
+      const verifiedTitle = [result.vehicle_title, result.title, structured.title, job.vehicle_title]
+        .find(value => typeof value === 'string' && value.trim());
+      if (verifiedTitle) return verifiedTitle.trim();
+      if (job.status === 'queued') return `Vehicle ${vehicleNum} — Queued`;
+      if (job.status === 'processing') return `Vehicle ${vehicleNum} — Processing`;
+      if (job.status === 'failed') return `Vehicle ${vehicleNum} — Failed`;
+      return `Vehicle ${vehicleNum} — Ready`;
+    }
+
+    function forgetJobLocally(jobId) {
       dismissedJobIds.add(jobId);
       delete currentBatchJobs[jobId];
       if (currentJobId === jobId) {
+        galleryRequestToken += 1;
         currentJobId = null;
         document.getElementById('result').classList.add('hidden');
         document.getElementById('facebookPost').value = '';
@@ -1214,8 +1260,39 @@
         document.getElementById('imageGallery').innerHTML = '';
         document.getElementById('publishStatus').textContent = '';
       }
+      persistDismissedJobIds();
       renderJobCards();
     }
+
+    async function removeJob(jobId) {
+      forgetJobLocally(jobId);
+      await requestServerJobRemoval(jobId);
+    }
+
+    async function requestServerJobRemoval(jobId) {
+      if (pendingJobRemovals.has(jobId)) return pendingJobRemovals.get(jobId);
+      const removal = (async () => {
+        try {
+          const response = await fetch(`/batch-jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          // Keep the local tombstone so a delayed poll cannot restore the card.
+          console.warn('Server job removal will need retry:', error);
+        } finally {
+          pendingJobRemovals.delete(jobId);
+        }
+      })();
+      pendingJobRemovals.set(jobId, removal);
+      return removal;
+    }
+
+    window.addEventListener('storage', event => {
+      if (event.key !== DISMISSED_JOBS_STORAGE_KEY) return;
+      loadDismissedJobIds();
+      for (const jobId of dismissedJobIds) {
+        if (currentBatchJobs[jobId]) forgetJobLocally(jobId);
+      }
+    });
 
     async function openJob(jobId) {
       const job = currentBatchJobs[jobId];

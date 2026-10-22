@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import time
 import unittest
 from contextlib import ExitStack
@@ -14,6 +15,7 @@ from app.vintrade_parser import (
     build_vintrade_post,
     download_vintrade_images,
     extract_gallery_images,
+    get_vintrade_vehicle_title,
     is_vintrade_url,
     parse_vintrade_html,
 )
@@ -32,7 +34,8 @@ HTML = """<!doctype html><html><body><main>
 <dl><dt>Powertrain</dt><dd>Electric</dd><dt>Power</dt><dd>349 hp</dd>
 <dt>Gearbox</dt><dd>Automatic</dd><dt>Drive</dt><dd>RWD</dd>
 <dt>Battery</dt><dd>107 kWh</dd><dt>Electric range</dt><dd>745 km · CLTC</dd>
-<dt>Body style</dt><dd>Sedan</dd><dt>Odometer</dt><dd>4,400 km</dd><dt>Photos</dt><dd>2</dd></dl>
+<dt>Body style</dt><dd>Sedan</dd><dt>Trim</dt><dd>Model Pioneer Edition</dd>
+<dt>Odometer</dt><dd>4,400 km</dd><dt>Photos</dt><dd>2</dd></dl>
 <aside><p>Asking price in China</p><p>€33,817</p><p>$37,960</p><p>Rate on 19.10.2026: €1 = $1.1225</p>
 <dl><dt>Car price</dt><dd>€33,817</dd><dt>Taxes to Bulgaria</dt><dd>≈ €10,858</dd></dl>
 <p>Estimated price €44,675</p></aside>
@@ -61,6 +64,10 @@ class VinTradeParserTests(unittest.TestCase):
         self.assertEqual(len(vehicle.image_urls), 2)
         self.assertIn("1280x0_photo-one", vehicle.image_urls[0])
         self.assertNotIn("similar-car", " ".join(vehicle.image_urls))
+        post, _ = build_vintrade_post(vehicle)
+        self.assertIn("💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: 44 675 € 💥", post)
+        self.assertNotIn("Ориентировъчната цена е посочена", post)
+        self.assertEqual(get_vintrade_vehicle_title(vehicle), "Audi A6L e-tron Pioneer Edition — 2026")
 
     def test_missing_prices_and_specs_are_not_invented_or_calculated(self):
         html = '<main><h1>Unknown Car</h1><p>Asking price on request</p></main>'
@@ -90,6 +97,92 @@ class VinTradeParserTests(unittest.TestCase):
 
 
 class VinTradeJobWorkflowTests(unittest.TestCase):
+    def test_encar_result_exposes_generated_vehicle_title(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(generator, "GENERATED_DIR", Path(temp_dir)),
+                patch.object(generator, "cleanup_old_jobs"),
+                patch.object(generator, "download_html", return_value="<html></html>"),
+                patch.object(generator, "extract_price_krw", return_value=1_000_000),
+                patch.object(generator, "extract_year", return_value=2022),
+                patch.object(generator, "extract_mileage", return_value=20_000),
+                patch.object(generator, "get_eur_to_krw_rate_info", return_value=(1_700.0, "2026-10-20")),
+                patch.object(generator, "krw_to_eur_with_rate", return_value=1_000),
+                patch.object(generator, "calculate_final_price_eur", return_value=(9_000, 8_000)),
+                patch.object(generator, "format_eur", side_effect=lambda value: str(value)),
+                patch.object(generator, "format_km", side_effect=lambda value: str(value)),
+                patch.object(generator, "extract_clean_car_text", return_value="verified listing text"),
+                patch.object(generator, "generate_facebook_data_with_openai", return_value={"title": "Audi Q4 e-tron 40"}),
+                patch.object(generator, "build_facebook_post", return_value="generated post"),
+                patch.object(generator, "download_images", return_value=[]),
+                patch.object(generator, "create_zip"),
+            ):
+                result = generator.process_encar("https://www.encar.com/car/test", job_id="encar-title-test")
+        self.assertEqual(result["vehicle_title"], "Audi Q4 e-tron 40 — 2022")
+
+    def test_remove_poll_add_and_seven_car_limit_recovery(self):
+        def submit(urls):
+            with patch.object(routes._executor, "submit"):
+                return routes.batch_generate(None, {"urls": urls})["job_ids"]
+
+        first_id = submit(["https://vintrade.up.railway.app/car/first"])[0]
+        self.assertTrue(routes.remove_batch_job(first_id)["removed"])
+        self.assertNotIn(first_id, [job["job_id"] for job in routes.batch_status(None)["jobs"]])
+        replacement = submit(["https://www.encar.com/car/replacement"])
+        self.assertEqual(len(replacement), 1)
+        routes.remove_batch_job(replacement[0])
+
+        seven_ids = submit([f"https://example.test/car/{index}" for index in range(7)])
+        self.assertEqual(len(seven_ids), 7)
+        with self.assertRaises(routes.HTTPException) as error:
+            submit(["https://example.test/car/overflow"])
+        self.assertEqual(error.exception.status_code, 409)
+        for job_id in seven_ids:
+            routes.remove_batch_job(job_id)
+        second_seven = submit([f"https://example.test/car/new-{index}" for index in range(7)])
+        self.assertEqual(len(second_seven), 7)
+        for job_id in second_seven:
+            routes.remove_batch_job(job_id)
+
+    def test_removing_processing_job_prevents_worker_resurrection(self):
+        job_id = "4a9652ec-7333-4428-8f1c-b92cc4a9a12f"
+        started = threading.Event()
+        release = threading.Event()
+        with routes._jobs_lock:
+            routes._jobs[job_id] = routes.Job(job_id, "https://example.test/car", routes.JobStatus.QUEUED)
+
+        def slow_process(*_args, **_kwargs):
+            started.set()
+            release.wait(timeout=5)
+            return {"job_id": job_id, "images_count": 0}
+
+        with patch.object(routes, "process_encar", side_effect=slow_process):
+            worker = threading.Thread(target=routes._process_job_background, args=(job_id, "https://example.test/car"))
+            worker.start()
+            self.assertTrue(started.wait(timeout=2))
+            self.assertEqual(routes._jobs[job_id].status, routes.JobStatus.PROCESSING)
+            routes.remove_batch_job(job_id)
+            release.set()
+            worker.join(timeout=3)
+        self.assertFalse(worker.is_alive())
+        self.assertNotIn(job_id, routes._jobs)
+        self.assertEqual(routes.batch_status(None)["jobs"], [])
+
+    def test_removing_one_registry_job_preserves_other_job_state(self):
+        first_id, second_id = "job-one", "job-two"
+        other = routes.Job(second_id, "url-two", routes.JobStatus.COMPLETED, result={"facebook_post": "draft", "image_ids": ["02.jpg", "01.jpg"]})
+        with routes._jobs_lock:
+            routes._jobs[first_id] = routes.Job(first_id, "url-one", routes.JobStatus.FAILED)
+            routes._jobs[second_id] = other
+        try:
+            routes.remove_batch_job(first_id)
+            self.assertIs(routes._jobs[second_id], other)
+            self.assertEqual(routes._jobs[second_id].result, {"facebook_post": "draft", "image_ids": ["02.jpg", "01.jpg"]})
+        finally:
+            with routes._jobs_lock:
+                routes._jobs.pop(first_id, None)
+                routes._jobs.pop(second_id, None)
+
     def test_batch_accepts_mixed_source_urls(self):
         encar_url = "https://www.encar.com/dc/dc_cardetailview.do?carid=123"
         with routes._jobs_lock:
