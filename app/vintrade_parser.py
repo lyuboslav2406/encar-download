@@ -215,7 +215,10 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
     lines: list[str] = []
 
     if estimate:
-        lines.append(f"💥 ОРИЕНТИРОВЪЧНА ЦЕНА ДО БЪЛГАРИЯ: {estimate} 💥")
+        estimate_amount = f"{int(prices['estimated_bulgaria']['amount']):,}".replace(",", " ")
+        estimate_currency = prices["estimated_bulgaria"]["currency"]
+        post_estimate = f"{estimate_amount} {estimate_currency}"
+        lines.append(f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {post_estimate} 💥")
     elif asking:
         lines.append(f"💥 ЦЕНА В ОБЯВАТА: {asking} 💥")
     if vehicle.title:
@@ -244,8 +247,6 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
         if value:
             lines.append(f"✅ {label}: {translated(value) if key == 'Steering' else value}")
     lines.append("━━━━━━━━━━━━━━━━━━━")
-    if estimate:
-        lines.append("Ориентировъчната цена е посочена от VinTrade и не е гарантирана крайна оферта.")
     lines.append("━━━━━━━━━━━━━━━━━━━")
 
     from .config import STATIC_FOOTER
@@ -270,6 +271,18 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
     else:
         summary.append("Крайна цена не е изчислена.")
     return post, "\n".join(summary)
+
+
+def get_vintrade_vehicle_title(vehicle: VinTradeVehicle) -> str | None:
+    """Build a dashboard title from the listing title, trim and year only."""
+    if not vehicle.title:
+        return None
+    title = re.sub(rf"^\s*{vehicle.year}\s+", "", vehicle.title, count=1) if vehicle.year else vehicle.title.strip()
+    trim = vehicle.specifications.get("Trim", "").strip()
+    trim = re.sub(r"^Model\s+", "", trim, flags=re.I)
+    if trim and trim.casefold() not in title.casefold():
+        title = f"{title} {trim}".strip()
+    return f"{title} — {vehicle.year}" if vehicle.year else title
 
 
 def download_vintrade_images(image_urls: list[str], save_dir) -> list:

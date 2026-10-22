@@ -25,6 +25,7 @@ from .vintrade_parser import (
     build_vintrade_post,
     download_vintrade_images,
     fetch_vintrade_html,
+    get_vintrade_vehicle_title,
     is_vintrade_url,
     parse_vintrade_html,
 )
@@ -96,6 +97,7 @@ def process_encar(url: str, job_id: Optional[str] = None):
 
     return {
         "job_id": job_id,
+        "vehicle_title": f"{vehicle_data['title']} — {car_year}" if vehicle_data.get("title") else None,
         "price_summary": price_summary,
         "exchange_rate": exchange_rate,
         "facebook_post": facebook_post,
@@ -124,6 +126,7 @@ def process_vintrade(url: str, job_id: Optional[str] = None):
     return {
         "job_id": job_id,
         "source": "vintrade",
+        "vehicle_title": get_vintrade_vehicle_title(vehicle),
         "price_summary": price_summary,
         "exchange_rate": None,
         "facebook_post": facebook_post,
