@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 
 from .cleanup import cleanup_old_jobs
 from .config import GENERATED_DIR
@@ -19,11 +20,23 @@ from .scraper import (
     extract_price_krw,
     extract_year,
 )
+from .vintrade_parser import (
+    VinTradeVehicle,
+    build_vintrade_post,
+    download_vintrade_images,
+    fetch_vintrade_html,
+    get_vintrade_vehicle_title,
+    is_vintrade_url,
+    parse_vintrade_html,
+)
 
 
-def process_encar(url: str):
+def process_encar(url: str, job_id: Optional[str] = None):
+    if is_vintrade_url(url):
+        return process_vintrade(url, job_id=job_id)
+
     cleanup_old_jobs(max_age_hours=24, max_jobs=30)
-    job_id = str(uuid.uuid4())
+    job_id = job_id or str(uuid.uuid4())
     job_dir = GENERATED_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 
@@ -53,7 +66,6 @@ def process_encar(url: str):
         "formatted_mileage": format_km(mileage),
         "raw_car_text": clean_car_text,
     }
-
     exchange_rate = {
         "source": FRANKFURTER_SOURCE,
         "date": exchange_rate_date,
@@ -85,6 +97,7 @@ def process_encar(url: str):
 
     return {
         "job_id": job_id,
+        "vehicle_title": f"{vehicle_data['title']} — {car_year}" if vehicle_data.get("title") else None,
         "price_summary": price_summary,
         "exchange_rate": exchange_rate,
         "facebook_post": facebook_post,
@@ -94,7 +107,41 @@ def process_encar(url: str):
     }
 
 
+def process_vintrade(url: str, job_id: Optional[str] = None):
+    """Generate the existing job/result format from a VinTrade listing."""
+    cleanup_old_jobs(max_age_hours=24, max_jobs=30)
+    job_id = job_id or str(uuid.uuid4())
+    job_dir = GENERATED_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    html = fetch_vintrade_html(url)
+    (job_dir / "detail_page.html").write_text(html, encoding="utf-8")
+    vehicle: VinTradeVehicle = parse_vintrade_html(html, url)
+    facebook_post, price_summary = build_vintrade_post(vehicle)
+
+    image_files = download_vintrade_images(vehicle.image_urls, job_dir)
+    zip_path = job_dir / "encar_images.zip"
+    create_zip(image_files, zip_path)
+
+    return {
+        "job_id": job_id,
+        "source": "vintrade",
+        "vehicle_title": get_vintrade_vehicle_title(vehicle),
+        "price_summary": price_summary,
+        "exchange_rate": None,
+        "facebook_post": facebook_post,
+        "zip_url": f"/download/{job_id}",
+        "photos_url": f"/photos/{job_id}",
+        "images_count": len(image_files),
+    }
+
+
 def process_price_summary(url: str):
+    if is_vintrade_url(url):
+        vehicle = parse_vintrade_html(fetch_vintrade_html(url), url)
+        _, price_summary = build_vintrade_post(vehicle)
+        return {"price_summary": price_summary, "exchange_rate": None, "source": "vintrade"}
+
     html = download_html(url)
 
     price_krw = extract_price_krw(html)

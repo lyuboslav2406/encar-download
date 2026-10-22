@@ -66,11 +66,13 @@ def _process_job_background(job_id: str, url: str) -> None:
     try:
         # Mark as processing
         with _jobs_lock:
-            if job_id in _jobs:
-                _jobs[job_id].status = JobStatus.PROCESSING
+            job = _jobs.get(job_id)
+            if job is None:
+                return
+            job.status = JobStatus.PROCESSING
         
         # Run existing single-vehicle generation
-        result = process_encar(url)
+        result = process_encar(url, job_id=job_id)
         
         # Mark as completed with result
         with _jobs_lock:
@@ -648,6 +650,10 @@ def publish_facebook(request: Request, body: dict):
             raise HTTPException(status_code=400, detail="job_id is required.")
 
         job_dir = GENERATED_DIR / job_id
+        logger.info(
+            "Publish image directory: job_id=%s image_dir=%s exists=%s",
+            job_id, job_dir.resolve(), job_dir.exists()
+        )
         if not job_dir.exists():
             raise HTTPException(status_code=400, detail=f"Job directory not found: {job_id}")
 
@@ -789,6 +795,10 @@ def schedule_facebook(request: Request, body: dict):
             raise HTTPException(status_code=400, detail="job_id is required.")
 
         job_dir = GENERATED_DIR / job_id
+        logger.info(
+            "Schedule image directory: job_id=%s image_dir=%s exists=%s",
+            job_id, job_dir.resolve(), job_dir.exists()
+        )
         if not job_dir.exists():
             raise HTTPException(status_code=400, detail=f"Job directory not found: {job_id}")
 
@@ -913,26 +923,29 @@ def batch_generate(request: Request, body: dict):
         if len(urls) > 7:
             raise HTTPException(status_code=400, detail="You can process up to 7 active vehicles at a time.")
 
-        job_ids = []
-        for url in urls:
-            if not url or not isinstance(url, str):
-                raise HTTPException(status_code=400, detail="All URLs must be non-empty strings")
-            
-            # Create job record
-            job_id = str(uuid.uuid4())
-            job = Job(
-                job_id=job_id,
-                encar_url=url,
-                status=JobStatus.QUEUED
-            )
-            
-            # Store job
-            with _jobs_lock:
-                _jobs[job_id] = job
-            
-            # Submit to executor (max 3 concurrent jobs enforced by ThreadPoolExecutor)
-            _executor.submit(_process_job_background, job_id, url)
-            job_ids.append(job_id)
+        if any(not url or not isinstance(url, str) for url in urls):
+            raise HTTPException(status_code=400, detail="All URLs must be non-empty strings")
+
+        job_ids = [str(uuid.uuid4()) for _ in urls]
+        with _jobs_lock:
+            if len(_jobs) + len(urls) > 7:
+                raise HTTPException(status_code=409, detail="You can have up to 7 non-removed vehicles. Remove a vehicle before adding another.")
+
+            for job_id, url in zip(job_ids, urls):
+                _jobs[job_id] = Job(
+                    job_id=job_id,
+                    encar_url=url,
+                    status=JobStatus.QUEUED,
+                )
+
+            try:
+                # The worker blocks on _jobs_lock until all reservations are submitted.
+                for job_id, url in zip(job_ids, urls):
+                    _executor.submit(_process_job_background, job_id, url)
+            except Exception:
+                for job_id in job_ids:
+                    _jobs.pop(job_id, None)
+                raise
         
         return {"job_ids": job_ids}
     
@@ -940,6 +953,19 @@ def batch_generate(request: Request, body: dict):
         raise
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.delete("/batch-jobs/{job_id}")
+def remove_batch_job(job_id: str):
+    """Idempotently remove a job from the visible registry and free its slot.
+
+    Generated files are intentionally retained; an already-running worker can
+    finish writing them without affecting any in-flight publish or schedule.
+    The worker only updates an existing registry entry and cannot resurrect it.
+    """
+    with _jobs_lock:
+        _jobs.pop(job_id, None)
+    return {"job_id": job_id, "removed": True}
 
 
 @router.get("/batch-status")
