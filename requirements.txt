@@ -7,3 +7,4 @@ python-multipart
 jinja2
 itsdangerous==2.2.0
 boto3
+Pillow
