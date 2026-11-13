@@ -29,9 +29,17 @@ from .vintrade_parser import (
     is_vintrade_url,
     parse_vintrade_html,
 )
+from .streamline_parser import (
+    build_streamline_post,
+    fetch_streamline_html,
+    is_streamline_url,
+    parse_streamline_html,
+)
 
 
 def process_encar(url: str, job_id: Optional[str] = None):
+    if is_streamline_url(url):
+        return process_streamline(url, job_id=job_id)
     if is_vintrade_url(url):
         return process_vintrade(url, job_id=job_id)
 
@@ -136,7 +144,45 @@ def process_vintrade(url: str, job_id: Optional[str] = None):
     }
 
 
+def process_streamline(url: str, job_id: Optional[str] = None):
+    """Generate the existing job/result format from a StreamLine listing."""
+    from .streamline_parser import download_streamline_images
+
+    cleanup_old_jobs(max_age_hours=24, max_jobs=30)
+    job_id = job_id or str(uuid.uuid4())
+    job_dir = GENERATED_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+
+    html = fetch_streamline_html(url)
+    (job_dir / "detail_page.html").write_text(html, encoding="utf-8")
+    vehicle = parse_streamline_html(html, url)
+    facebook_post, price_summary = build_streamline_post(vehicle)
+
+    image_files = download_streamline_images(vehicle.image_urls, job_dir)
+    zip_path = job_dir / "encar_images.zip"
+    create_zip(image_files, zip_path)
+
+    title = vehicle.title
+    if vehicle.year:
+        title = f"{title} — {vehicle.year}" if title else str(vehicle.year)
+    return {
+        "job_id": job_id,
+        "source": "streamline",
+        "vehicle_title": title or None,
+        "price_summary": price_summary,
+        "exchange_rate": None,
+        "facebook_post": facebook_post,
+        "zip_url": f"/download/{job_id}",
+        "photos_url": f"/photos/{job_id}",
+        "images_count": len(image_files),
+    }
+
+
 def process_price_summary(url: str):
+    if is_streamline_url(url):
+        vehicle = parse_streamline_html(fetch_streamline_html(url), url)
+        _, price_summary = build_streamline_post(vehicle)
+        return {"price_summary": price_summary, "exchange_rate": None, "source": "streamline"}
     if is_vintrade_url(url):
         vehicle = parse_vintrade_html(fetch_vintrade_html(url), url)
         _, price_summary = build_vintrade_post(vehicle)

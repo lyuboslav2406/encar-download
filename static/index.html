@@ -767,12 +767,12 @@
     </header>
 
     <section class="card" id="urlCard">
-      <div class="card-title">🔗 Encar URL</div>
-      <p class="card-note">Paste the Encar URL once here, then use any mode without re-pasting.</p>
+      <div class="card-title">🔗 Car listing URL</div>
+      <p class="card-note">Paste an Encar, VinTrade, or StreamLine Auto BG URL once here.</p>
 
       <div class="input-group">
-        <label class="field-label" for="sharedUrlInput">Encar URL</label>
-        <input id="sharedUrlInput" placeholder="Paste Encar link here..." />
+        <label class="field-label" for="sharedUrlInput">Car listing URL</label>
+        <input id="sharedUrlInput" placeholder="Paste a car listing link here..." />
       </div>
       <button id="urlActionBtn" onclick="handleUrlAction()">Add Car</button>
       <p id="urlStatus" class="status-text"></p>
@@ -943,7 +943,7 @@
       }
 
       if (!url) {
-        alert("Please paste an Encar or VinTrade link first.");
+        alert("Please paste an Encar, VinTrade, or StreamLine Auto BG link first.");
         return;
       }
 
@@ -1043,7 +1043,7 @@
 
       const url = input.value.trim();
       if (!url) {
-        statusEl.textContent = 'Please enter an Encar or VinTrade URL.';
+        statusEl.textContent = 'Please enter an Encar, VinTrade, or StreamLine Auto BG URL.';
         return;
       }
 

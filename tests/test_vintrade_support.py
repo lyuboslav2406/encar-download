@@ -11,6 +11,7 @@ from PIL import Image
 from starlette.requests import Request
 
 from app import generator, routes
+from app.openai_service import build_facebook_post
 from app.vintrade_parser import (
     build_vintrade_post,
     download_vintrade_images,
@@ -67,7 +68,27 @@ class VinTradeParserTests(unittest.TestCase):
         post, _ = build_vintrade_post(vehicle)
         self.assertIn("💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: 44 675 € 💥", post)
         self.assertNotIn("Ориентировъчната цена е посочена", post)
+        self.assertNotRegex(post, r"━+\n━+")
+        self.assertNotRegex(post, r"(?i)viber|11MsM")
+        self.assertIn("0877 56 77 52", post)
+        self.assertIn("0878 588 266", post)
         self.assertEqual(get_vintrade_vehicle_title(vehicle), "Audi A6L e-tron Pioneer Edition — 2026")
+
+    def test_encar_post_has_no_viber_but_keeps_phone_contacts(self):
+        post = build_facebook_post(
+            {"final_price_eur": 10_000, "mileage": 50_000, "year": 2024},
+            {
+                "title": "Audi Q4 e-tron",
+                "fuel": "Електрически",
+                "transmission": "Автоматик",
+                "short_accent": "Електрически | Автоматик",
+                "strong_highlights": [],
+            },
+        )
+        self.assertNotRegex(post, r"━+\n━+")
+        self.assertNotRegex(post, r"(?i)viber|11MsM")
+        self.assertIn("0877 56 77 52", post)
+        self.assertIn("0878 588 266", post)
 
     def test_missing_prices_and_specs_are_not_invented_or_calculated(self):
         html = '<main><h1>Unknown Car</h1><p>Asking price on request</p></main>'
@@ -79,10 +100,20 @@ class VinTradeParserTests(unittest.TestCase):
         self.assertIsNone(vehicle.prices["taxes_to_bulgaria"])
         self.assertIsNone(vehicle.prices["estimated_bulgaria"])
         self.assertIn("Крайна цена не е изчислена", summary)
+        self.assertNotRegex(post, r"━+\n━+")
         self.assertNotIn("КРАЙНА ЦЕНА ДО БЪЛГАРИЯ:", post)
         self.assertNotIn("Бензин", post)
         self.assertNotIn("Автоматик", post)
         self.assertNotIn("VIN проверка", post)
+
+    def test_vintrade_post_omits_steering_position_fields_and_values(self):
+        vehicle = parse_vintrade_html(HTML, VINTRADE_URL)
+        vehicle.specifications["Drive"] = "Left-hand drive"
+        vehicle.specifications["Steering"] = "Right-hand drive"
+        vehicle.specifications["Волан"] = "Десен волан"
+        post, _ = build_vintrade_post(vehicle)
+        self.assertNotRegex(post, r"(?i)steering|hand drive|волан|руль")
+        self.assertIn("Батерия: 107 kWh", post)
 
     def test_webp_download_is_converted_to_jpeg(self):
         buffer = BytesIO()
