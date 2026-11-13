@@ -240,13 +240,11 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
         "Dimensions": "Размери",
         "Curb weight": "Собствена маса",
         "Colour": "Цвят",
-        "Steering": "Волан",
     }
     for key, label in labels.items():
         value = vehicle.specifications.get(key)
         if value:
             lines.append(f"✅ {label}: {translated(value) if key == 'Steering' else value}")
-    lines.append("━━━━━━━━━━━━━━━━━━━")
     lines.append("━━━━━━━━━━━━━━━━━━━")
 
     from .config import STATIC_FOOTER
@@ -285,7 +283,13 @@ def get_vintrade_vehicle_title(vehicle: VinTradeVehicle) -> str | None:
     return f"{title} — {vehicle.year}" if vehicle.year else title
 
 
-def download_vintrade_images(image_urls: list[str], save_dir) -> list:
+def download_vintrade_images(
+    image_urls: list[str],
+    save_dir,
+    *,
+    max_images: int | None = MAX_IMAGES,
+    referer: str | None = None,
+) -> list:
     """Download gallery images and normalize them to JPEG for existing routes."""
     from io import BytesIO
     from pathlib import Path
@@ -293,8 +297,10 @@ def download_vintrade_images(image_urls: list[str], save_dir) -> list:
     from PIL import Image
 
     saved = []
-    for url in image_urls[:MAX_IMAGES]:
-        response = requests.get(url, headers={**HEADERS, "Referer": f"https://{VINTRADE_HOST}/"}, timeout=30)
+    selected_urls = image_urls if max_images is None else image_urls[:max_images]
+    image_headers = {**HEADERS, "Referer": referer or f"https://{VINTRADE_HOST}/"}
+    for url in selected_urls:
+        response = requests.get(url, headers=image_headers, timeout=30)
         response.raise_for_status()
         with Image.open(BytesIO(response.content)) as image:
             path = Path(save_dir) / f"{len(saved) + 1:02d}.jpg"
