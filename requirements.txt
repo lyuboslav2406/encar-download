@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 requests
+python-dotenv
 beautifulsoup4
 openai
 python-multipart
