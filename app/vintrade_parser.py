@@ -184,6 +184,21 @@ def _format_price(price: dict[str, int | str] | None) -> str | None:
     return f"{price['currency']}{amount}"
 
 
+def _is_steering_position(key: str, value: str = "") -> bool:
+    normalized_key = re.sub(r"[\W_]+", "", key.casefold())
+    normalized_value = re.sub(r"[\W_]+", "", value.casefold())
+    steering_keys = ("steering", "volan", "руль", "рулев", "volant", "lenkrad", "lenkung", "핸들", "ハンドル", "方向盘")
+    steering_values = (
+        "lefthanddrive", "righthanddrive", "leftsteering", "rightsteering", "lhd", "rhd",
+        "лявволан", "десенволан", "левыйруль", "правыйруль", "volantgauche", "volantdroite",
+        "volanteizquierdo", "volanteizquierda", "volantederecho", "volantederecha", "linkslenker",
+        "rechtslenker", "좌핸들", "우핸들", "左舵", "右舵", "右ハンドル", "左ハンドル",
+    )
+    return any(term in normalized_key for term in steering_keys) or any(
+        term in normalized_value for term in steering_values
+    )
+
+
 def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
     """Build a grounded StreamLine Auto post and its displayed-price summary."""
     prices = vehicle.prices
@@ -208,29 +223,38 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
     def translated(value: str | None) -> str | None:
         return value_translations.get(value.lower(), value) if value else None
 
-    fuel = translated(vehicle.specifications.get("Powertrain") or vehicle.specifications.get("Fuel"))
-    gearbox = translated(vehicle.specifications.get("Gearbox"))
-    drive = translated(vehicle.specifications.get("Drive"))
-    body_style = translated(vehicle.specifications.get("Body style"))
-    lines: list[str] = []
+    specifications = {
+        key: value for key, value in vehicle.specifications.items()
+        if not _is_steering_position(key, value)
+    }
+    fuel = translated(specifications.get("Powertrain") or specifications.get("Fuel"))
+    gearbox = translated(specifications.get("Gearbox"))
+    drive = translated(specifications.get("Drive"))
+    body_style = translated(specifications.get("Body style"))
+    separator = "━━━━━━━━━━━━━━━━━━━"
+    sections: list[list[str]] = []
+    heading: list[str] = []
 
     if estimate:
         estimate_amount = f"{int(prices['estimated_bulgaria']['amount']):,}".replace(",", " ")
         estimate_currency = prices["estimated_bulgaria"]["currency"]
         post_estimate = f"{estimate_amount} {estimate_currency}"
-        lines.append(f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {post_estimate} 💥")
+        heading.append(f"💥 КРАЙНА ЦЕНА ДО БЪЛГАРИЯ: {post_estimate} 💥")
     elif asking:
-        lines.append(f"💥 ЦЕНА В ОБЯВАТА: {asking} 💥")
+        heading.append(f"💥 ЦЕНА В ОБЯВАТА: {asking} 💥")
     if vehicle.title:
-        lines.append(f"🚙 {vehicle.title} 🚙")
-    lines.extend(["━━━━━━━━━━━━━━━━━━━", f"⚜️ {year} • 🖤 {mileage} KM"])
-    if fuel or gearbox:
-        lines.append(f"⛽ {fuel or 'Гориво не е посочено'} | ⚙️ {gearbox or 'Трансмисия не е посочена'}")
-    lines.append("━━━━━━━━━━━━━━━━━━━")
+        heading.append(f"🚙 {vehicle.title} 🚙")
+    if heading:
+        sections.append(heading)
 
-    accents = [value for value in (drive, body_style, vehicle.specifications.get("Trim")) if value]
+    details = [f"⚜️ {year} • 🖤 {mileage} KM"]
+    if fuel or gearbox:
+        details.append(f"⛽ {fuel or 'Гориво не е посочено'} | ⚙️ {gearbox or 'Трансмисия не е посочена'}")
+    sections.append(details)
+
+    accents = [value for value in (drive, body_style, specifications.get("Trim")) if value]
     if accents:
-        lines.extend([f"💎 {' | '.join(accents)}", "━━━━━━━━━━━━━━━━━━━"])
+        sections.append([f"💎 {' | '.join(accents)}"])
     labels = {
         "Power": "Мощност",
         "Battery": "Батерия",
@@ -241,15 +265,17 @@ def build_vintrade_post(vehicle: VinTradeVehicle) -> tuple[str, str]:
         "Curb weight": "Собствена маса",
         "Colour": "Цвят",
     }
-    for key, label in labels.items():
-        value = vehicle.specifications.get(key)
-        if value:
-            lines.append(f"✅ {label}: {translated(value) if key == 'Steering' else value}")
-    lines.append("━━━━━━━━━━━━━━━━━━━")
+    feature_lines = [
+        f"✅ {label}: {value}"
+        for key, label in labels.items()
+        if (value := specifications.get(key))
+    ]
+    if feature_lines:
+        sections.append(feature_lines)
 
     from .config import STATIC_FOOTER
     footer = STATIC_FOOTER.replace("✅ VIN проверка + пълен списък с екстри при интерес\n", "")
-    post = "\n".join(lines) + "\n" + footer
+    post = f"\n{separator}\n".join("\n".join(section) for section in sections) + "\n" + footer
 
     summary = ["Източник: VinTrade"]
     if vehicle.year:

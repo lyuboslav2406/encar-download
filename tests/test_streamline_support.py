@@ -73,9 +73,24 @@ class StreamlineParserTests(unittest.TestCase):
         self.assertIn("⛽ Електрически | ⚙️ Автоматична", post)
         self.assertIn("💎 4x4 (постоянно) | Седан", post)
         self.assertIn("Батерия: 83,2 kWh", post)
+        self.assertNotRegex(post, r"━+\n━+")
+        self.assertNotRegex(post, r"(?i)steering|hand drive|волан|руль")
+        self.assertNotRegex(post, r"(?i)viber|11MsM")
+        self.assertIn("0877 56 77 52", post)
+        self.assertIn("0878 588 266", post)
         self.assertNotIn("23 834", post)
         self.assertIn("Прогнозна цена според обявата: 36 380 €", summary)
         self.assertNotIn("курс", summary.lower())
+
+    def test_streamline_post_omits_steering_position_fields_and_values(self):
+        vehicle = parse_streamline_html(HTML, STREAMLINE_URL)
+        vehicle.specifications["Задвижване"] = "Ляв волан"
+        vehicle.specifications["Волан"] = "Десен волан"
+        vehicle.specifications["Steering wheel"] = "Right-hand drive"
+        post, _ = build_streamline_post(vehicle)
+        self.assertNotRegex(post, r"(?i)steering|hand drive|волан|руль")
+        self.assertIn("Батерия: 83,2 kWh", post)
+        self.assertNotRegex(post, r"━+\n━+")
 
     def test_estimated_price_is_required(self):
         html_without_estimate = HTML.replace(
