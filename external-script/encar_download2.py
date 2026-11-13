@@ -288,7 +288,7 @@ JSON формат:
         return "\n".join(lines)
 
 SAVE_DIR = "encar_images"
-MAX_IMAGES = 12
+MAX_IMAGES = 15
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

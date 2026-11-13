@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from app import generator
 from app.streamline_parser import (
@@ -9,6 +9,7 @@ from app.streamline_parser import (
     parse_streamline_html,
 )
 from app.vintrade_parser import is_vintrade_url
+from app.streamline_parser import StreamlineAccessError, fetch_streamline_html
 
 
 STREAMLINE_URL = "https://streamlineautobg.com/car/2025-byd-han-l-01a1d433-3a18-7e98-8403-d59774a0a910"
@@ -36,6 +37,57 @@ HTML = """<!doctype html><html lang="bg"><body><main>
 
 
 class StreamlineParserTests(unittest.TestCase):
+    def test_fetch_follows_redirects_and_retries_only_transient_server_statuses(self):
+        response = MagicMock()
+        response.status_code = 200
+        response.url = STREAMLINE_URL
+        response.text = HTML
+        session = MagicMock()
+        session.get.return_value = response
+
+        with patch("app.streamline_parser.requests.Session") as session_factory:
+            session_factory.return_value.__enter__.return_value = session
+            self.assertEqual(fetch_streamline_html(STREAMLINE_URL), HTML)
+
+        session.get.assert_called_once_with(
+            STREAMLINE_URL,
+            headers={"User-Agent": "Mozilla/5.0", "Referer": "https://streamlineautobg.com/"},
+            timeout=(10, 30),
+            allow_redirects=True,
+        )
+        adapter = session.mount.call_args.args[1]
+        self.assertEqual(adapter.max_retries.total, 2)
+        self.assertEqual(set(adapter.max_retries.status_forcelist), {500, 502, 503, 504})
+        self.assertNotIn(403, adapter.max_retries.status_forcelist)
+
+    def test_403_logs_safe_diagnostics_and_does_not_retry(self):
+        response = MagicMock()
+        response.status_code = 403
+        response.url = STREAMLINE_URL + "?token=private-value"
+        response.headers = {
+            "Server": "cloudflare",
+            "CF-Ray": "test-ray",
+            "CF-Mitigated": "challenge",
+            "Set-Cookie": "session=secret",
+        }
+        response.text = "<html><title>Forbidden</title><p>token=private-value Automated access denied</p></html>"
+        session = MagicMock()
+        session.get.return_value = response
+
+        with patch("app.streamline_parser.requests.Session") as session_factory:
+            session_factory.return_value.__enter__.return_value = session
+            with self.assertLogs("app.streamline_parser", level="WARNING") as captured:
+                with self.assertRaises(StreamlineAccessError):
+                    fetch_streamline_html(STREAMLINE_URL)
+
+        session.get.assert_called_once()
+        self.assertIn("status=403", captured.output[0])
+        self.assertIn("test-ray", captured.output[0])
+        self.assertIn("Automated access denied", captured.output[0])
+        self.assertNotIn("private-value", captured.output[0])
+        self.assertNotIn("Set-Cookie", captured.output[0])
+        self.assertNotIn("?token=", captured.output[0])
+
     def test_detects_listing_domain_and_path_only(self):
         self.assertTrue(is_streamline_url(STREAMLINE_URL))
         self.assertTrue(is_streamline_url(STREAMLINE_URL.replace("streamlineautobg.com", "www.streamlineautobg.com")))
