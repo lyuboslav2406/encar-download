@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from html import unescape
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import HEADERS, MAX_IMAGES
 from .vintrade_parser import VinTradeVehicle, build_vintrade_post, download_vintrade_images
@@ -18,6 +21,31 @@ from .vintrade_parser import VinTradeVehicle, build_vintrade_post, download_vint
 STREAMLINE_HOST = "streamlineautobg.com"
 _PRICE_RE = re.compile(r"(?P<amount>[\d\s\u00a0\u202f,.]+)\s*(?P<currency>€|\$|£|лв\.?|EUR|USD|BGN)", re.I)
 _IMAGE_DIMENSION_RE = re.compile(r"/(\d+)x(?:\d+)?_")
+logger = logging.getLogger(__name__)
+
+
+class StreamlineAccessError(requests.HTTPError):
+    """The listing server denied or rejected an HTTP request."""
+
+
+def _safe_url(url: str) -> str:
+    parsed = urlparse(url)
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+
+
+def _safe_response_excerpt(response: requests.Response) -> str:
+    excerpt = " ".join(BeautifulSoup(response.text[:8192], "html.parser").stripped_strings)
+    excerpt = re.sub(
+        r"(?i)\b(authorization|cookie|set-cookie|token|csrf|api[_-]?key)\b\s*[:=]\s*[^\s,;]+",
+        r"\1=[REDACTED]",
+        excerpt,
+    )
+    return excerpt[:400]
+
+
+def _diagnostic_headers(response: requests.Response) -> dict[str, str]:
+    allowed = {"server", "cf-ray", "cf-cache-status", "cf-mitigated", "content-type", "retry-after"}
+    return {key: value for key, value in response.headers.items() if key.lower() in allowed}
 
 
 @dataclass
@@ -52,7 +80,38 @@ def is_streamline_url(url: str) -> bool:
 
 
 def fetch_streamline_html(url: str) -> str:
-    response = requests.get(url, headers={**HEADERS, "Referer": f"https://{STREAMLINE_HOST}/"}, timeout=30)
+    retry = Retry(
+        total=2,
+        connect=2,
+        read=2,
+        status=2,
+        backoff_factor=0.25,
+        status_forcelist=(500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+    )
+    with requests.Session() as session:
+        session.mount("https://", HTTPAdapter(max_retries=retry))
+        response = session.get(
+            url,
+            headers={**HEADERS, "Referer": f"https://{STREAMLINE_HOST}/"},
+            timeout=(10, 30),
+            allow_redirects=True,
+        )
+
+    if response.status_code == 403:
+        logger.warning(
+            "StreamLine listing access denied: status=%s final_url=%s headers=%s body_excerpt=%r",
+            response.status_code,
+            _safe_url(response.url),
+            _diagnostic_headers(response),
+            _safe_response_excerpt(response),
+        )
+        raise StreamlineAccessError(
+            f"StreamLine Auto BG denied the listing request (HTTP 403) at {_safe_url(response.url)}. "
+            "This is an access restriction from the remote site; the listing could not be fetched."
+        )
+
     response.raise_for_status()
     return response.text
 
